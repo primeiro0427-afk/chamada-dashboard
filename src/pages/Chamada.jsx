@@ -10,6 +10,98 @@ import {
 import { formatDateFull } from '../utils/dates'
 import { useAuth } from '../contexts/AuthContext'
 
+// Componente fora da função principal para evitar perda de foco nos inputs
+function PontuacaoLista({ alunos, registros, extras, configCats, catsSemPresenca, toggleExtra, setNumerico, readonly }) {
+  const alunosOrd = [...alunos].sort((a, b) => {
+    const ap = registros[a.id] === true, bp = registros[b.id] === true
+    if (ap === bp) return a.nome.localeCompare(b.nome)
+    return ap ? -1 : 1
+  })
+
+  return (
+    <div className="space-y-2">
+      {alunosOrd.map(aluno => {
+        const presente = registros[aluno.id] === true
+        const pts = calcularPontosRegistro({ presente, categorias: extras[aluno.id] || {} }, configCats)
+
+        return (
+          <div key={aluno.id} className={`rounded-xl border-2 p-3 transition ${presente ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100 opacity-50 pointer-events-none select-none'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${presente ? 'bg-green-500' : 'bg-gray-300'}`}>
+                  {presente ? <Check size={14} className="text-white" /> : <X size={14} className="text-white" />}
+                </div>
+                <span className={`font-medium ${presente ? 'text-gray-800' : 'text-gray-400'}`}>{aluno.nome}</span>
+              </div>
+              {presente
+                ? <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{pts} pts</span>
+                : pts < 0 && <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">{pts} pts</span>
+              }
+            </div>
+
+            {presente && (
+              <div className="flex flex-wrap gap-2 pl-9">
+                {catsSemPresenca.map(cat => {
+                  if (readonly) {
+                    const val = extras[aluno.id]?.[cat.id]
+                    const temValor = cat.tipo === 'boolean' ? !!val : parseFloat(val) > 0
+                    return temValor ? (
+                      <span key={cat.id} className="text-xs px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-700 font-medium">
+                        {cat.nome}{cat.tipo === 'currency' ? ` R$${parseFloat(val).toFixed(0)}` : cat.tipo === 'numeric' ? ` ${parseInt(val)}x` : ' ✓'}
+                      </span>
+                    ) : (
+                      <span key={cat.id} className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 text-gray-400">{cat.nome}</span>
+                    )
+                  }
+
+                  if (cat.tipo === 'currency') return (
+                    <div key={cat.id} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
+                      <span className="text-xs text-gray-500">R$</span>
+                      <input type="number" min="0" step="0.01" placeholder="0"
+                        value={extras[aluno.id]?.[cat.id] ?? ''}
+                        onChange={e => setNumerico(aluno.id, cat.id, e.target.value)}
+                        className="w-14 text-xs text-center focus:outline-none bg-transparent font-medium text-gray-700"
+                      />
+                      <span className="text-xs text-gray-400">{cat.nome}</span>
+                    </div>
+                  )
+
+                  if (cat.tipo === 'numeric') return (
+                    <div key={cat.id} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
+                      <input type="number" min="0" step="1" placeholder="0"
+                        value={extras[aluno.id]?.[cat.id] ?? ''}
+                        onChange={e => setNumerico(aluno.id, cat.id, e.target.value)}
+                        className="w-10 text-xs text-center focus:outline-none bg-transparent font-medium text-gray-700"
+                      />
+                      <span className="text-xs text-gray-400">{cat.nome}</span>
+                    </div>
+                  )
+
+                  const marcado = extras[aluno.id]?.[cat.id] === true
+                  return (
+                    <button key={cat.id} onClick={() => toggleExtra(aluno.id, cat.id)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition ${marcado ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300'}`}
+                    >
+                      {marcado && <Check size={11} />}
+                      {cat.nome}
+                      {!marcado && <span className="text-gray-300">+{cat.pontos}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {!presente && (
+              <div className="pl-9 text-xs text-gray-400">
+                {pts < 0 ? `−${Math.abs(pts)} pts por ausência` : 'Ausente — sem pontuação'}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function Chamada({ params, navigate }) {
   const { turmaId, data }    = params
   const { profile }          = useAuth()
@@ -241,96 +333,7 @@ export default function Chamada({ params, navigate }) {
     )
   }
 
-  const PontuacaoLista = ({ readonly = false }) => {
-    const alunosOrd = [...alunos].sort((a, b) => {
-      const ap = registros[a.id] === true, bp = registros[b.id] === true
-      if (ap === bp) return a.nome.localeCompare(b.nome)
-      return ap ? -1 : 1
-    })
-
-    return (
-      <div className="space-y-2">
-        {alunosOrd.map(aluno => {
-          const presente = registros[aluno.id] === true
-          const pts = calcularPontosRegistro({ presente, categorias: extras[aluno.id] || {} }, configCats)
-
-          return (
-            <div key={aluno.id} className={`rounded-xl border-2 p-3 transition ${presente ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100 opacity-50 pointer-events-none select-none'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${presente ? 'bg-green-500' : 'bg-gray-300'}`}>
-                    {presente ? <Check size={14} className="text-white" /> : <X size={14} className="text-white" />}
-                  </div>
-                  <span className={`font-medium ${presente ? 'text-gray-800' : 'text-gray-400'}`}>{aluno.nome}</span>
-                </div>
-                {presente
-                  ? <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{pts} pts</span>
-                  : pts < 0 && <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">{pts} pts</span>
-                }
-              </div>
-
-              {presente && (
-                <div className="flex flex-wrap gap-2 pl-9">
-                  {catsSemPresenca.map(cat => {
-                    if (readonly) {
-                      const val = extras[aluno.id]?.[cat.id]
-                      const temValor = cat.tipo === 'boolean' ? !!val : parseFloat(val) > 0
-                      return temValor ? (
-                        <span key={cat.id} className="text-xs px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-700 font-medium">
-                          {cat.nome}{cat.tipo === 'currency' ? ` R$${parseFloat(val).toFixed(0)}` : cat.tipo === 'numeric' ? ` ${parseInt(val)}x` : ' ✓'}
-                        </span>
-                      ) : (
-                        <span key={cat.id} className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 text-gray-400">{cat.nome}</span>
-                      )
-                    }
-
-                    if (cat.tipo === 'currency') return (
-                      <div key={cat.id} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
-                        <span className="text-xs text-gray-500">R$</span>
-                        <input type="number" min="0" step="0.01" placeholder="0"
-                          value={extras[aluno.id]?.[cat.id] ?? ''}
-                          onChange={e => setNumerico(aluno.id, cat.id, e.target.value)}
-                          className="w-14 text-xs text-center focus:outline-none bg-transparent font-medium text-gray-700"
-                        />
-                        <span className="text-xs text-gray-400">{cat.nome}</span>
-                      </div>
-                    )
-
-                    if (cat.tipo === 'numeric') return (
-                      <div key={cat.id} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
-                        <input type="number" min="0" step="1" placeholder="0"
-                          value={extras[aluno.id]?.[cat.id] ?? ''}
-                          onChange={e => setNumerico(aluno.id, cat.id, e.target.value)}
-                          className="w-10 text-xs text-center focus:outline-none bg-transparent font-medium text-gray-700"
-                        />
-                        <span className="text-xs text-gray-400">{cat.nome}</span>
-                      </div>
-                    )
-
-                    const marcado = extras[aluno.id]?.[cat.id] === true
-                    return (
-                      <button key={cat.id} onClick={() => toggleExtra(aluno.id, cat.id)}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition ${marcado ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300'}`}
-                      >
-                        {marcado && <Check size={11} />}
-                        {cat.nome}
-                        {!marcado && <span className="text-gray-300">+{cat.pontos}</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-              {!presente && (
-                <div className="pl-9 text-xs text-gray-400">
-                  {pts < 0 ? `−${Math.abs(pts)} pts por ausência` : 'Ausente — sem pontuação'}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
+  const pontuacaoProps = { alunos, registros, extras, configCats, catsSemPresenca, toggleExtra, setNumerico }
 
   const ContadoresPresenca = () => (
     <div className="grid grid-cols-3 gap-3">
@@ -403,7 +406,7 @@ export default function Chamada({ params, navigate }) {
             <span className="font-semibold text-indigo-700">Total da turma</span>
             <span className="text-2xl font-black text-indigo-700">{totalPontos} pts</span>
           </div>
-          <PontuacaoLista readonly />
+          <PontuacaoLista {...pontuacaoProps} readonly />
           <button onClick={() => setModo('edit-pontuacao')}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-indigo-700 border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition no-print"
           >
@@ -495,7 +498,7 @@ export default function Chamada({ params, navigate }) {
           <div className="text-xs font-medium text-red-500 mt-1">Ausentes</div>
         </div>
       </div>
-      <PontuacaoLista />
+      <PontuacaoLista {...pontuacaoProps} />
       <div className="pt-2 no-print flex flex-col gap-2">
         <BtnSalvar onClick={handleSalvarPontuacao} label="Salvar Pontuação" />
         <button onClick={() => setModo('view')} className="w-full py-2.5 rounded-xl font-semibold text-gray-600 border border-gray-200 bg-gray-50 hover:bg-gray-100 transition">
@@ -545,7 +548,7 @@ export default function Chamada({ params, navigate }) {
           <div className="text-xs font-medium text-red-500 mt-1">Ausentes</div>
         </div>
       </div>
-      <PontuacaoLista />
+      <PontuacaoLista {...pontuacaoProps} />
       <div className="pt-2 no-print">
         <button
           onClick={handleSalvarNovo}
