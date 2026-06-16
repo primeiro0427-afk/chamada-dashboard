@@ -34,25 +34,25 @@ export default function Login() {
 
           <form onSubmit={handleEntrar} className="space-y-4">
             <div className="relative">
-              <Mail size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-300/50" />
+              <Mail size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="Usuário" required
-                className="w-full rounded-xl pl-11 pr-4 py-3.5 text-white text-sm placeholder-blue-300/40 border border-white/10 focus:outline-none focus:border-[#c8a84b]/60 transition"
-                style={{ background: 'rgba(255,255,255,0.07)' }}
+                className="w-full rounded-xl pl-11 pr-4 py-3.5 text-gray-800 text-sm placeholder-gray-400 border border-white/30 focus:outline-none focus:border-[#c8a84b]/80 transition"
+                style={{ background: 'rgba(255,255,255,0.92)' }}
               />
             </div>
 
             <div className="relative">
-              <Lock size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-300/50" />
+              <Lock size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type={showSenha ? 'text' : 'password'} value={senha} onChange={e => setSenha(e.target.value)}
                 placeholder="Senha" required
-                className="w-full rounded-xl pl-11 pr-11 py-3.5 text-white text-sm placeholder-blue-300/40 border border-white/10 focus:outline-none focus:border-[#c8a84b]/60 transition"
-                style={{ background: 'rgba(255,255,255,0.07)' }}
+                className="w-full rounded-xl pl-11 pr-11 py-3.5 text-gray-800 text-sm placeholder-gray-400 border border-white/30 focus:outline-none focus:border-[#c8a84b]/80 transition"
+                style={{ background: 'rgba(255,255,255,0.92)' }}
               />
               <button type="button" onClick={() => setShowSenha(s => !s)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-300/40 hover:text-blue-300 transition">
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
                 {showSenha
                   ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                   : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -68,7 +68,7 @@ export default function Login() {
 
             <button type="submit" disabled={loading}
               className="w-full py-3.5 rounded-xl font-bold text-white text-sm tracking-widest uppercase flex items-center justify-center gap-2 mt-1 transition disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg, #1a4ac8, #2255e0)', boxShadow: '0 4px 20px rgba(30,80,220,0.45)' }}
+              style={{ background: 'linear-gradient(135deg, #1a4ac8, #2255e0)', boxShadow: '0 4px 20px rgba(30,80,220,0.45)', border: '1px solid rgba(255,255,255,0.35)' }}
             >
               <LogIn size={16} />
               {loading ? 'Entrando...' : 'Entrar'}
