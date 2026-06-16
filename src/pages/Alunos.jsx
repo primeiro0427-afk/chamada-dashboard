@@ -2,9 +2,30 @@ import { useState, useEffect } from 'react'
 import { ClipboardList, Users, Pencil, Trash2, Search } from 'lucide-react'
 import { getTurmas, getAlunos, saveAluno, deleteAluno } from '../utils/storage'
 import { getCor } from '../utils/colors'
+import { useAuth } from '../contexts/AuthContext'
 
 function SeletorTurma({ navigate }) {
-  const turmas = getTurmas()
+  const [turmas, setTurmas]   = useState([])
+  const [counts, setCounts]   = useState({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      const t = await getTurmas()
+      setTurmas(t)
+      const c = {}
+      await Promise.all(t.map(async turma => {
+        const a = await getAlunos(turma.id)
+        c[turma.id] = a.length
+      }))
+      setCounts(c)
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  if (loading) return <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
+
   return (
     <div className="space-y-5">
       <div>
@@ -13,8 +34,8 @@ function SeletorTurma({ navigate }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {turmas.map(turma => {
-          const cor = getCor(turma.cor)
-          const total = getAlunos(turma.id).length
+          const cor   = getCor(turma.cor)
+          const total = counts[turma.id] ?? 0
           return (
             <button
               key={turma.id}
@@ -32,49 +53,58 @@ function SeletorTurma({ navigate }) {
 }
 
 export default function Alunos({ params, navigate }) {
-  const { turmaId } = params
-  const [turma, setTurma] = useState(null)
-  const [alunos, setAlunos] = useState([])
-  const [nome, setNome] = useState('')
-  const [matricula, setMatricula] = useState('')
-  const [editando, setEditando] = useState(null)
-  const [confirmDelete, setConfirmDelete] = useState(null)
-  const [busca, setBusca] = useState('')
+  const { turmaId }     = params
+  const { profile }     = useAuth()
+  const igrejaId        = profile?.igreja_id
 
-  const load = () => {
+  const [turma, setTurma]               = useState(null)
+  const [alunos, setAlunos]             = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [nome, setNome]                 = useState('')
+  const [matricula, setMatricula]       = useState('')
+  const [editando, setEditando]         = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [busca, setBusca]               = useState('')
+
+  const load = async () => {
     if (!turmaId) return
-    const t = getTurmas().find(t => t.id === turmaId)
-    setTurma(t)
-    setAlunos(getAlunos(turmaId).sort((a, b) => a.nome.localeCompare(b.nome)))
+    setLoading(true)
+    const [turmas, lista] = await Promise.all([
+      getTurmas(),
+      getAlunos(turmaId),
+    ])
+    setTurma(turmas.find(t => t.id === turmaId))
+    setAlunos(lista.sort((a, b) => a.nome.localeCompare(b.nome)))
+    setLoading(false)
   }
 
   useEffect(() => { load() }, [turmaId])
 
   if (!turmaId) return <SeletorTurma navigate={navigate} />
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault()
     if (!nome.trim()) return
-    saveAluno({
-      id: `aluno_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      nome: nome.trim(),
+    await saveAluno({
+      id:        crypto.randomUUID(),
+      nome:      nome.trim(),
       matricula: matricula.trim(),
       turmaId,
-    })
+    }, igrejaId)
     setNome('')
     setMatricula('')
     load()
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editando.nome.trim()) return
-    saveAluno({ ...editando, nome: editando.nome.trim(), matricula: editando.matricula?.trim() || '' })
+    await saveAluno({ ...editando, nome: editando.nome.trim(), matricula: editando.matricula?.trim() || '' }, igrejaId)
     setEditando(null)
     load()
   }
 
-  const handleDelete = (id) => {
-    deleteAluno(id)
+  const handleDelete = async (id) => {
+    await deleteAluno(id)
     setConfirmDelete(null)
     load()
   }
@@ -84,6 +114,7 @@ export default function Alunos({ params, navigate }) {
     a.matricula?.toLowerCase().includes(busca.toLowerCase())
   )
 
+  if (loading) return <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
   if (!turma) return null
 
   return (
@@ -187,15 +218,9 @@ export default function Alunos({ params, navigate }) {
                     <div className="font-medium text-gray-800 truncate">{aluno.nome}</div>
                     {aluno.matricula && <div className="text-xs text-gray-400">Mat: {aluno.matricula}</div>}
                   </div>
-
-                  <button
-                    onClick={() => setEditando({ ...aluno })}
-                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                    title="Editar"
-                  >
+                  <button onClick={() => setEditando({ ...aluno })} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Editar">
                     <Pencil size={16} />
                   </button>
-
                   {confirmDelete === aluno.id ? (
                     <div className="flex gap-1 items-center">
                       <span className="text-xs text-red-600 mr-1">Confirmar?</span>
@@ -203,11 +228,7 @@ export default function Alunos({ params, navigate }) {
                       <button onClick={() => setConfirmDelete(null)} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg">Não</button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => setConfirmDelete(aluno.id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                      title="Remover aluno"
-                    >
+                    <button onClick={() => setConfirmDelete(aluno.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Remover aluno">
                       <Trash2 size={16} />
                     </button>
                   )}

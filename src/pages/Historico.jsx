@@ -7,7 +7,27 @@ import { getCor } from '../utils/colors'
 const FREQ_MIN = 50
 
 function SeletorTurma({ navigate }) {
-  const turmas = getTurmas()
+  const [turmas, setTurmas]   = useState([])
+  const [counts, setCounts]   = useState({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      const t = await getTurmas()
+      setTurmas(t)
+      const c = {}
+      await Promise.all(t.map(async turma => {
+        const ch = await getChamadas(turma.id)
+        c[turma.id] = ch.length
+      }))
+      setCounts(c)
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  if (loading) return <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
+
   return (
     <div className="space-y-5">
       <div>
@@ -17,7 +37,7 @@ function SeletorTurma({ navigate }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {turmas.map(turma => {
           const cor = getCor(turma.cor)
-          const chamadas = getChamadas(turma.id)
+          const n   = counts[turma.id] ?? 0
           return (
             <button
               key={turma.id}
@@ -25,7 +45,7 @@ function SeletorTurma({ navigate }) {
               className={`text-left p-4 rounded-xl border-2 ${cor.bg} ${cor.border} hover:shadow-md transition`}
             >
               <p className={`font-bold text-lg ${cor.text}`}>{turma.nome}</p>
-              <p className="text-sm text-gray-500 mt-1">{chamadas.length} aula{chamadas.length !== 1 ? 's' : ''} registrada{chamadas.length !== 1 ? 's' : ''}</p>
+              <p className="text-sm text-gray-500 mt-1">{n} aula{n !== 1 ? 's' : ''} registrada{n !== 1 ? 's' : ''}</p>
             </button>
           )
         })}
@@ -36,30 +56,37 @@ function SeletorTurma({ navigate }) {
 
 export default function Historico({ params, navigate }) {
   const { turmaId } = params
-  const [turma, setTurma] = useState(null)
-  const [alunos, setAlunos] = useState([])
-  const [chamadas, setChamadas] = useState([])
+  const [turma, setTurma]             = useState(null)
+  const [alunos, setAlunos]           = useState([])
+  const [chamadas, setChamadas]       = useState([])
   const [selectedData, setSelectedData] = useState(null)
-  const [view, setView] = useState('frequencia')
+  const [view, setView]               = useState('frequencia')
+  const [loading, setLoading]         = useState(true)
 
   useEffect(() => {
     if (!turmaId) return
-    const t = getTurmas().find(t => t.id === turmaId)
-    setTurma(t)
-    const a = getAlunos(turmaId).sort((a, b) => a.nome.localeCompare(b.nome))
-    setAlunos(a)
-    const c = getChamadas(turmaId).sort((a, b) => b.data.localeCompare(a.data))
-    setChamadas(c)
-    if (c.length > 0) setSelectedData(c[0].data)
+    const load = async () => {
+      setLoading(true)
+      const [turmas, a, c] = await Promise.all([
+        getTurmas(),
+        getAlunos(turmaId),
+        getChamadas(turmaId),
+      ])
+      setTurma(turmas.find(t => t.id === turmaId))
+      setAlunos(a.sort((a, b) => a.nome.localeCompare(b.nome)))
+      const sorted = c.sort((a, b) => b.data.localeCompare(a.data))
+      setChamadas(sorted)
+      if (sorted.length > 0) setSelectedData(sorted[0].data)
+      setLoading(false)
+    }
+    load()
   }, [turmaId])
 
   const frequencias = useMemo(() => {
     return alunos
       .map(aluno => {
-        const total = chamadas.length
-        const presencas = chamadas.filter(c =>
-          c.registros.some(r => r.alunoId === aluno.id && r.presente)
-        ).length
+        const total    = chamadas.length
+        const presencas = chamadas.filter(c => c.registros.some(r => r.alunoId === aluno.id && r.presente)).length
         const pct = total > 0 ? Math.round((presencas / total) * 100) : null
         return { aluno, presencas, total, pct }
       })
@@ -72,59 +99,44 @@ export default function Historico({ params, navigate }) {
   }, [alunos, chamadas])
 
   if (!turmaId) return <SeletorTurma navigate={navigate} />
+  if (loading)  return <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
+  if (!turma)   return null
 
   const exportCSV = () => {
-    if (!turma) return
     const header = ['Nome', 'Matricula', 'Presencas', 'Total Aulas', 'Frequencia (%)']
     const rows = frequencias.map(f => [
-      `"${f.aluno.nome}"`,
-      f.aluno.matricula || '',
-      f.presencas,
-      f.total,
-      f.pct !== null ? f.pct : 'N/A',
+      `"${f.aluno.nome}"`, f.aluno.matricula || '', f.presencas, f.total, f.pct !== null ? f.pct : 'N/A',
     ])
-    const csv = [header, ...rows].map(r => r.join(',')).join('\n')
+    const csv  = [header, ...rows].map(r => r.join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
     a.download = `frequencia-${turma.nome}-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  if (!turma) return null
-
-  const totalAulas = chamadas.length
-  const abaixoMin = frequencias.filter(f => f.pct !== null && f.pct < FREQ_MIN).length
-  const mediaFreq = frequencias.length > 0 && totalAulas > 0
+  const totalAulas       = chamadas.length
+  const abaixoMin        = frequencias.filter(f => f.pct !== null && f.pct < FREQ_MIN).length
+  const mediaFreq        = frequencias.length > 0 && totalAulas > 0
     ? Math.round(frequencias.reduce((s, f) => s + (f.pct ?? 0), 0) / frequencias.length)
     : null
-
-  const selectedChamada = chamadas.find(c => c.data === selectedData)
+  const selectedChamada  = chamadas.find(c => c.data === selectedData)
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Histórico — {turma.nome}</h2>
           <p className="text-gray-500">{totalAulas} aula{totalAulas !== 1 ? 's' : ''} registrada{totalAulas !== 1 ? 's' : ''} · {alunos.length} alunos</p>
         </div>
         <div className="flex gap-2 no-print">
-          <button
-            onClick={exportCSV}
-            className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-gray-600"
-          >
-            <Download size={15} className="text-indigo-600" />
-            Exportar CSV
+          <button onClick={exportCSV} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-gray-600">
+            <Download size={15} className="text-indigo-600" /> Exportar CSV
           </button>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-gray-600"
-          >
-            <Printer size={15} className="text-indigo-600" />
-            Imprimir
+          <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-gray-600">
+            <Printer size={15} className="text-indigo-600" /> Imprimir
           </button>
         </div>
       </div>
@@ -144,7 +156,6 @@ export default function Historico({ params, navigate }) {
         </div>
       ) : (
         <>
-          {/* Cards de resumo */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
               <div className="text-2xl font-bold text-indigo-600">{totalAulas}</div>
@@ -155,51 +166,26 @@ export default function Historico({ params, navigate }) {
               <div className="text-xs text-gray-500 mt-1">Alunos</div>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
-              <div className={`text-2xl font-bold ${
-                mediaFreq === null ? 'text-gray-400'
-                : mediaFreq >= 70 ? 'text-green-600'
-                : mediaFreq >= FREQ_MIN ? 'text-amber-600'
-                : 'text-red-600'
-              }`}>
+              <div className={`text-2xl font-bold ${mediaFreq === null ? 'text-gray-400' : mediaFreq >= 70 ? 'text-green-600' : mediaFreq >= FREQ_MIN ? 'text-amber-600' : 'text-red-600'}`}>
                 {mediaFreq !== null ? `${mediaFreq}%` : '—'}
               </div>
               <div className="text-xs text-gray-500 mt-1">Freq. média</div>
             </div>
-            <div className={`rounded-xl p-3 text-center border ${
-              abaixoMin > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'
-            }`}>
-              <div className={`text-2xl font-bold ${abaixoMin > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {abaixoMin}
-              </div>
-              <div className={`text-xs mt-1 ${abaixoMin > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                Abaixo de {FREQ_MIN}%
-              </div>
+            <div className={`rounded-xl p-3 text-center border ${abaixoMin > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+              <div className={`text-2xl font-bold ${abaixoMin > 0 ? 'text-red-600' : 'text-green-600'}`}>{abaixoMin}</div>
+              <div className={`text-xs mt-1 ${abaixoMin > 0 ? 'text-red-500' : 'text-green-500'}`}>Abaixo de {FREQ_MIN}%</div>
             </div>
           </div>
 
-          {/* Tabs */}
           <div className="flex gap-2 no-print">
-            <button
-              onClick={() => setView('frequencia')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
-                view === 'frequencia' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <BarChart2 size={15} className={view === 'frequencia' ? 'text-white' : 'text-indigo-600'} />
-              Frequência Geral
+            <button onClick={() => setView('frequencia')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${view === 'frequencia' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              <BarChart2 size={15} className={view === 'frequencia' ? 'text-white' : 'text-indigo-600'} /> Frequência Geral
             </button>
-            <button
-              onClick={() => setView('detalhe')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
-                view === 'detalhe' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Calendar size={15} className={view === 'detalhe' ? 'text-white' : 'text-indigo-600'} />
-              Por Data
+            <button onClick={() => setView('detalhe')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${view === 'detalhe' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              <Calendar size={15} className={view === 'detalhe' ? 'text-white' : 'text-indigo-600'} /> Por Data
             </button>
           </div>
 
-          {/* Tabela de frequência */}
           {view === 'frequencia' && (
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
@@ -222,16 +208,11 @@ export default function Historico({ params, navigate }) {
                           <div className="font-medium text-gray-800">{f.aluno.nome}</div>
                           {f.aluno.matricula && <div className="text-xs text-gray-400">Mat: {f.aluno.matricula}</div>}
                         </td>
-                        <td className="px-4 py-3 text-center text-gray-600">
-                          {f.presencas}/{f.total}
-                        </td>
+                        <td className="px-4 py-3 text-center text-gray-600">{f.presencas}/{f.total}</td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-2">
                             <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                              <div
-                                className={`h-1.5 rounded-full ${f.pct !== null && f.pct >= FREQ_MIN ? 'bg-green-500' : 'bg-red-500'}`}
-                                style={{ width: `${f.pct ?? 0}%` }}
-                              />
+                              <div className={`h-1.5 rounded-full ${f.pct !== null && f.pct >= FREQ_MIN ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${f.pct ?? 0}%` }} />
                             </div>
                             <span className={`font-bold text-sm ${f.pct !== null && f.pct >= FREQ_MIN ? 'text-green-600' : f.pct !== null ? 'text-red-600' : 'text-gray-400'}`}>
                               {f.pct !== null ? `${f.pct}%` : '—'}
@@ -239,9 +220,8 @@ export default function Historico({ params, navigate }) {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {f.pct === null ? (
-                            <span className="text-gray-400 text-xs">—</span>
-                          ) : irregular ? (
+                          {f.pct === null ? <span className="text-gray-400 text-xs">—</span>
+                          : irregular ? (
                             <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-medium">
                               <AlertTriangle size={11} /> Irregular
                             </span>
@@ -259,14 +239,11 @@ export default function Historico({ params, navigate }) {
             </div>
           )}
 
-          {/* Detalhe por data */}
           {view === 'detalhe' && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 flex-wrap">
                 <label className="text-sm font-medium text-gray-600">Data:</label>
-                <select
-                  value={selectedData || ''}
-                  onChange={e => setSelectedData(e.target.value)}
+                <select value={selectedData || ''} onChange={e => setSelectedData(e.target.value)}
                   className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
                 >
                   {chamadas.map(c => {
@@ -279,12 +256,10 @@ export default function Historico({ params, navigate }) {
                   })}
                 </select>
                 {selectedData && (
-                  <button
-                    onClick={() => navigate('chamada', { turmaId, data: selectedData })}
+                  <button onClick={() => navigate('chamada', { turmaId, data: selectedData })}
                     className="flex items-center gap-2 px-3 py-2 text-sm bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-100 transition no-print"
                   >
-                    <Pencil size={14} className="text-indigo-600" />
-                    Editar esta chamada
+                    <Pencil size={14} className="text-indigo-600" /> Editar esta chamada
                   </button>
                 )}
               </div>
@@ -294,19 +269,11 @@ export default function Historico({ params, navigate }) {
                   <h3 className="font-semibold text-gray-700 capitalize">{formatDateFull(selectedData)}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {alunos.map(aluno => {
-                      const reg = selectedChamada.registros.find(r => r.alunoId === aluno.id)
+                      const reg      = selectedChamada.registros.find(r => r.alunoId === aluno.id)
                       const presente = reg?.presente
                       return (
-                        <div
-                          key={aluno.id}
-                          className={`flex items-center gap-3 p-3 rounded-xl border ${
-                            presente ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
-                          }`}
-                        >
-                          {presente
-                            ? <CheckCircle size={20} className="text-green-500 flex-shrink-0" />
-                            : <XCircle size={20} className="text-red-400 flex-shrink-0" />
-                          }
+                        <div key={aluno.id} className={`flex items-center gap-3 p-3 rounded-xl border ${presente ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                          {presente ? <CheckCircle size={20} className="text-green-500 flex-shrink-0" /> : <XCircle size={20} className="text-red-400 flex-shrink-0" />}
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-gray-800 truncate">{aluno.nome}</div>
                             {aluno.matricula && <div className="text-xs text-gray-400">Mat: {aluno.matricula}</div>}

@@ -1,15 +1,21 @@
-import { Home, Users, BarChart2, FileText, Settings, Menu, ClipboardList, Trophy } from 'lucide-react'
+import { Home, Users, BarChart2, FileText, Settings, Menu, ClipboardList, Trophy, LogOut } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 
-const NAV_ITEMS = [
-  { id: 'home',        label: 'Início',       Icon: Home },
-  { id: 'alunos',      label: 'Alunos',       Icon: Users },
-  { id: 'historico',   label: 'Frequência',   Icon: BarChart2 },
-  { id: 'ranking',     label: 'Ranking',      Icon: Trophy },
-  { id: 'relatorios',  label: 'Relatórios',   Icon: FileText },
+const NAV_ADMIN = [
+  { id: 'home',         label: 'Início',       Icon: Home },
+  { id: 'alunos',       label: 'Alunos',       Icon: Users },
+  { id: 'historico',    label: 'Frequência',   Icon: BarChart2 },
+  { id: 'ranking',      label: 'Ranking',      Icon: Trophy },
+  { id: 'relatorios',   label: 'Relatórios',   Icon: FileText },
+]
+
+const NAV_SECRETARIA = [
+  { id: 'home',   label: 'Início', Icon: Home },
+  { id: 'alunos', label: 'Alunos', Icon: Users },
 ]
 
 const BOTTOM_ITEMS = [
-  { id: 'configuracoes', label: 'Configurações', Icon: Settings },
+  { id: 'configuracoes', label: 'Configurações', Icon: Settings, adminOnly: true },
 ]
 
 const PAGE_TO_NAV = {
@@ -22,8 +28,10 @@ const PAGE_TO_NAV = {
   configuracoes: 'configuracoes',
 }
 
-export default function Sidebar({ page, navigate, collapsed, onToggle, mobileOpen, onMobileClose }) {
+export default function Sidebar({ page, navigate, collapsed, onToggle, mobileOpen, onMobileClose, isAdmin }) {
+  const { signOut, profile } = useAuth()
   const activeNav = PAGE_TO_NAV[page.name] || 'home'
+  const navItems  = isAdmin ? NAV_ADMIN : NAV_SECRETARIA
 
   const handleNav = (id) => {
     navigate(id)
@@ -31,7 +39,7 @@ export default function Sidebar({ page, navigate, collapsed, onToggle, mobileOpe
   }
 
   const itemClass = (id) =>
-    `flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 group
+    `flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 w-full
     ${activeNav === id
       ? 'bg-indigo-600 text-white'
       : 'text-slate-400 hover:bg-slate-700 hover:text-white'
@@ -39,17 +47,9 @@ export default function Sidebar({ page, navigate, collapsed, onToggle, mobileOpe
 
   const renderItem = ({ id, label, Icon }) => (
     <li key={id}>
-      <button
-        onClick={() => handleNav(id)}
-        className={itemClass(id)}
-        title={collapsed ? label : undefined}
-      >
+      <button onClick={() => handleNav(id)} className={itemClass(id)} title={collapsed ? label : undefined}>
         <Icon size={20} className="flex-shrink-0" />
-        {!collapsed && (
-          <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
-            {label}
-          </span>
-        )}
+        {!collapsed && <span className="text-sm font-medium whitespace-nowrap overflow-hidden">{label}</span>}
       </button>
     </li>
   )
@@ -63,7 +63,7 @@ export default function Sidebar({ page, navigate, collapsed, onToggle, mobileOpe
             <ClipboardList size={22} className="text-indigo-400 flex-shrink-0" />
             <div className="min-w-0">
               <p className="text-white font-bold text-sm leading-tight truncate">Sistema de Chamada</p>
-              <p className="text-slate-400 text-xs">Domingos · 08:30</p>
+              <p className="text-slate-400 text-xs truncate">{profile?.nome || 'EBD'}</p>
             </div>
           </div>
         )}
@@ -77,18 +77,35 @@ export default function Sidebar({ page, navigate, collapsed, onToggle, mobileOpe
         </button>
       </div>
 
+      {/* Perfil/role badge */}
+      {!collapsed && (
+        <div className="px-3 pt-3 pb-1">
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isAdmin ? 'bg-indigo-900 text-indigo-300' : 'bg-slate-700 text-slate-300'}`}>
+            {isAdmin ? 'Admin' : 'Secretária'}
+          </span>
+        </div>
+      )}
+
       {/* Nav items */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto">
         <ul className="space-y-1">
-          {NAV_ITEMS.map(renderItem)}
+          {navItems.map(renderItem)}
         </ul>
       </nav>
 
       {/* Bottom items */}
-      <div className="px-2 py-3 border-t border-slate-700">
-        <ul className="space-y-1">
-          {BOTTOM_ITEMS.map(renderItem)}
-        </ul>
+      <div className="px-2 py-3 border-t border-slate-700 space-y-1">
+        {BOTTOM_ITEMS.filter(i => !i.adminOnly || isAdmin).map(renderItem)}
+        <li>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg w-full text-slate-400 hover:bg-slate-700 hover:text-white transition"
+            title={collapsed ? 'Sair' : undefined}
+          >
+            <LogOut size={20} className="flex-shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">Sair</span>}
+          </button>
+        </li>
       </div>
     </div>
   )
@@ -96,21 +113,14 @@ export default function Sidebar({ page, navigate, collapsed, onToggle, mobileOpe
   return (
     <>
       {/* Desktop sidebar */}
-      <aside
-        className={`hidden md:flex flex-col flex-shrink-0 transition-all duration-200 ${
-          collapsed ? 'w-16' : 'w-56'
-        }`}
-      >
+      <aside className={`hidden md:flex flex-col flex-shrink-0 transition-all duration-200 ${collapsed ? 'w-16' : 'w-56'}`}>
         {sidebarContent}
       </aside>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <>
-          <div
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={onMobileClose}
-          />
+          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={onMobileClose} />
           <aside className="fixed inset-y-0 left-0 w-56 z-50 md:hidden flex flex-col">
             {sidebarContent}
           </aside>

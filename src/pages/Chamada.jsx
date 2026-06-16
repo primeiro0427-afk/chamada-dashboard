@@ -8,59 +8,72 @@ import {
   getCategorias, calcularPontosRegistro,
 } from '../utils/storage'
 import { formatDateFull } from '../utils/dates'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function Chamada({ params, navigate }) {
-  const { turmaId, data } = params
-  const [turma, setTurma]         = useState(null)
-  const [alunos, setAlunos]       = useState([])
-  const [registros, setRegistros] = useState({})
-  const [extras, setExtras]       = useState({})
+  const { turmaId, data }    = params
+  const { profile }          = useAuth()
+  const igrejaId             = profile?.igreja_id
+
+  const [turma, setTurma]           = useState(null)
+  const [alunos, setAlunos]         = useState([])
+  const [registros, setRegistros]   = useState({})
+  const [extras, setExtras]         = useState({})
   const [configCats, setConfigCats] = useState([])
-  const [busca, setBusca]         = useState('')
-  const [saved, setSaved]         = useState(false)
+  const [busca, setBusca]           = useState('')
+  const [saved, setSaved]           = useState(false)
+  const [saving, setSaving]         = useState(false)
   const [recentSave, setRecentSave] = useState(false)
-  const [modo, setModo]           = useState(null) // 'view'|'edit-presenca'|'edit-pontuacao'|'novo'
-  const [abaView, setAbaView]     = useState('presenca')
-  const [etapa, setEtapa]         = useState(1) // only for 'novo'
+  const [modo, setModo]             = useState(null)
+  const [abaView, setAbaView]       = useState('presenca')
+  const [etapa, setEtapa]           = useState(1)
 
   useEffect(() => {
-    const t = getTurmas().find(t => t.id === turmaId)
-    setTurma(t)
+    if (!turmaId || !igrejaId) return
+    const load = async () => {
+      const [turmas, lista, cats, existente] = await Promise.all([
+        getTurmas(),
+        getAlunos(turmaId),
+        getCategorias(),
+        getChamadaByData(turmaId, data),
+      ])
 
-    const lista = getAlunos(turmaId).sort((a, b) => a.nome.localeCompare(b.nome))
-    setAlunos(lista)
+      const t = turmas.find(t => t.id === turmaId)
+      setTurma(t)
 
-    const cats = getCategorias()
-    setConfigCats(cats)
+      const sorted = lista.sort((a, b) => a.nome.localeCompare(b.nome))
+      setAlunos(sorted)
+      setConfigCats(cats)
 
-    const existente = getChamadaByData(turmaId, data)
-    const presMap = {}
-    const extMap  = {}
-    const catsSem = cats.filter(c => c.id !== 'presenca')
+      const presMap = {}
+      const extMap  = {}
+      const catsSem = cats.filter(c => c.id !== 'presenca')
 
-    lista.forEach(a => {
-      presMap[a.id] = null
-      extMap[a.id]  = {}
-      catsSem.forEach(c => {
-        extMap[a.id][c.id] = (c.tipo === 'currency' || c.tipo === 'numeric') ? '' : false
-      })
-      if (existente) {
-        const reg = existente.registros.find(r => r.alunoId === a.id)
-        if (reg) {
-          presMap[a.id] = reg.presente === true ? true : reg.presente === false ? false : null
-          if (reg.categorias) {
-            catsSem.forEach(c => {
-              if (reg.categorias[c.id] !== undefined) extMap[a.id][c.id] = reg.categorias[c.id]
-            })
+      sorted.forEach(a => {
+        presMap[a.id] = null
+        extMap[a.id]  = {}
+        catsSem.forEach(c => {
+          extMap[a.id][c.id] = (c.tipo === 'currency' || c.tipo === 'numeric') ? '' : false
+        })
+        if (existente) {
+          const reg = existente.registros.find(r => r.alunoId === a.id)
+          if (reg) {
+            presMap[a.id] = reg.presente === true ? true : reg.presente === false ? false : null
+            if (reg.categorias) {
+              catsSem.forEach(c => {
+                if (reg.categorias[c.id] !== undefined) extMap[a.id][c.id] = reg.categorias[c.id]
+              })
+            }
           }
         }
-      }
-    })
+      })
 
-    setRegistros(presMap)
-    setExtras(extMap)
-    setModo(existente ? 'view' : 'novo')
-  }, [turmaId, data])
+      setRegistros(presMap)
+      setExtras(extMap)
+      setModo(existente ? 'view' : 'novo')
+    }
+    load()
+  }, [turmaId, data, igrejaId])
 
   // ── Computed ────────────────────────────────────────────────────────────────
 
@@ -112,50 +125,61 @@ export default function Chamada({ params, navigate }) {
 
   // ── Save helpers ────────────────────────────────────────────────────────────
 
-  const savePresenca = (preservarExtras) => {
-    const existente = preservarExtras ? getChamadaByData(turmaId, data) : null
-    saveChamada({
-      id: `${turmaId}_${data}`,
-      turmaId,
-      data,
-      registros: alunos.map(a => {
-        const presente = registros[a.id] === true
-        const regEx    = existente?.registros.find(r => r.alunoId === a.id)
-        return { alunoId: a.id, presente, categorias: preservarExtras && presente ? (regEx?.categorias || {}) : {} }
-      }),
+  const buildRegistros = (preservarExtras, existente) =>
+    alunos.map(a => {
+      const presente = registros[a.id] === true
+      const regEx    = existente?.registros.find(r => r.alunoId === a.id)
+      return {
+        alunoId:    a.id,
+        presente,
+        categorias: preservarExtras && presente ? (regEx?.categorias || {}) : {},
+      }
     })
+
+  const buildRegistrosComExtras = () =>
+    alunos.map(a => ({
+      alunoId:    a.id,
+      presente:   registros[a.id] === true,
+      categorias: registros[a.id] === true ? (extras[a.id] || {}) : {},
+    }))
+
+  const handleSalvarPresenca = async () => {
+    setSaving(true)
+    const existente = await getChamadaByData(turmaId, data)
+    await saveChamada({ turmaId, data, registros: buildRegistros(true, existente) }, igrejaId)
+    setSaving(false)
+    setModo('view')
+    setAbaView('presenca')
+    setRecentSave(true)
   }
 
-  const saveComExtras = () => {
-    saveChamada({
-      id: `${turmaId}_${data}`,
-      turmaId,
-      data,
-      registros: alunos.map(a => ({
-        alunoId: a.id,
-        presente: registros[a.id] === true,
-        categorias: registros[a.id] === true ? (extras[a.id] || {}) : {},
-      })),
-    })
+  const handleSalvarPontuacao = async () => {
+    setSaving(true)
+    await saveChamada({ turmaId, data, registros: buildRegistrosComExtras() }, igrejaId)
+    setSaving(false)
+    setModo('view')
+    setAbaView('pontuacao')
+    setRecentSave(true)
   }
 
-  // ── Mode actions ────────────────────────────────────────────────────────────
-
-  const handleSalvarPresenca  = () => { savePresenca(true); setModo('view'); setAbaView('presenca');  setRecentSave(true) }
-  const handleSalvarPontuacao = () => { saveComExtras();    setModo('view'); setAbaView('pontuacao'); setRecentSave(true) }
-
-  const handleProximo = () => {
-    savePresenca(false)
+  const handleProximo = async () => {
+    setSaving(true)
+    await saveChamada({ turmaId, data, registros: buildRegistros(false, null) }, igrejaId)
+    setSaving(false)
     setEtapa(2)
     window.scrollTo(0, 0)
   }
 
-  const handleSalvarNovo = () => {
-    saveComExtras()
+  const handleSalvarNovo = async () => {
+    setSaving(true)
+    await saveChamada({ turmaId, data, registros: buildRegistrosComExtras() }, igrejaId)
+    setSaving(false)
     setSaved(true)
   }
 
-  if (modo === null || !turma) return null
+  if (modo === null || !turma) return (
+    <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
+  )
 
   // ── Reusable bits ───────────────────────────────────────────────────────────
 
@@ -189,31 +213,27 @@ export default function Chamada({ params, navigate }) {
           const cor  = status === true ? 'bg-green-50 border-green-400'
                      : status === false ? 'bg-red-50 border-red-400'
                      : 'bg-white border-gray-200'
-          return readonly ? (
-            <div key={aluno.id} className={`${base} ${cor}`}>
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${status === true ? 'bg-green-500' : status === false ? 'bg-red-500' : 'bg-gray-200'}`}>
-                {status === true ? <Check size={16} className="text-white" /> : status === false ? <X size={16} className="text-white" /> : <span className="text-sm font-bold text-gray-500">{idx + 1}</span>}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className={`font-medium truncate ${status === true ? 'text-green-800' : status === false ? 'text-red-800' : 'text-gray-700'}`}>{aluno.nome}</div>
-                {aluno.matricula && <div className="text-xs text-gray-400">Mat: {aluno.matricula}</div>}
-              </div>
-              <span className={`text-xs font-semibold flex-shrink-0 ${status === true ? 'text-green-600' : status === false ? 'text-red-500' : 'text-gray-300'}`}>
-                {status === true ? 'Presente' : status === false ? 'Ausente' : '—'}
-              </span>
+          const avatar = (
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${status === true ? 'bg-green-500' : status === false ? 'bg-red-500' : 'bg-gray-200'}`}>
+              {status === true ? <Check size={16} className="text-white" /> : status === false ? <X size={16} className="text-white" /> : <span className="text-sm font-bold text-gray-500">{idx + 1}</span>}
             </div>
+          )
+          const label = (
+            <div className="flex-1 min-w-0">
+              <div className={`font-medium truncate ${status === true ? 'text-green-800' : status === false ? 'text-red-800' : 'text-gray-700'}`}>{aluno.nome}</div>
+              {aluno.matricula && <div className="text-xs text-gray-400">Mat: {aluno.matricula}</div>}
+            </div>
+          )
+          const badge = (
+            <span className={`text-xs font-semibold flex-shrink-0 ${status === true ? 'text-green-600' : status === false ? 'text-red-500' : 'text-gray-300'}`}>
+              {status === true ? 'Presente' : status === false ? 'Ausente' : '—'}
+            </span>
+          )
+          return readonly ? (
+            <div key={aluno.id} className={`${base} ${cor}`}>{avatar}{label}{badge}</div>
           ) : (
             <button key={aluno.id} onClick={() => toggle(aluno.id)} className={`${base} ${cor} select-none active:scale-95 hover:border-gray-300`}>
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${status === true ? 'bg-green-500' : status === false ? 'bg-red-500' : 'bg-gray-200'}`}>
-                {status === true ? <Check size={16} className="text-white" /> : status === false ? <X size={16} className="text-white" /> : <span className="text-sm font-bold text-gray-500">{idx + 1}</span>}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className={`font-medium truncate ${status === true ? 'text-green-800' : status === false ? 'text-red-800' : 'text-gray-700'}`}>{aluno.nome}</div>
-                {aluno.matricula && <div className="text-xs text-gray-400">Mat: {aluno.matricula}</div>}
-              </div>
-              <span className={`text-xs font-semibold flex-shrink-0 ${status === true ? 'text-green-600' : status === false ? 'text-red-500' : 'text-gray-300'}`}>
-                {status === true ? 'Presente' : status === false ? 'Ausente' : '—'}
-              </span>
+              {avatar}{label}{badge}
             </button>
           )
         })}
@@ -329,9 +349,18 @@ export default function Chamada({ params, navigate }) {
     </div>
   )
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // VIEW MODE
-  // ─────────────────────────────────────────────────────────────────────────────
+  const BtnSalvar = ({ onClick, label }) => (
+    <button
+      onClick={onClick}
+      disabled={saving}
+      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white text-lg transition shadow-md bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60"
+    >
+      <Save size={20} className="text-white" />
+      {saving ? 'Salvando...' : label}
+    </button>
+  )
+
+  // ── VIEW MODE ────────────────────────────────────────────────────────────────
 
   if (modo === 'view') return (
     <div className="space-y-4">
@@ -392,22 +421,17 @@ export default function Chamada({ params, navigate }) {
     </div>
   )
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // EDIT-PRESENÇA MODE
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ── EDIT-PRESENÇA ────────────────────────────────────────────────────────────
 
   if (modo === 'edit-presenca') {
     const filtrados = alunos.filter(a => a.nome.toLowerCase().includes(busca.toLowerCase()))
     return (
       <div className="space-y-4">
         <TurmaHeader showBack onBack={() => setModo('view')} />
-
         <span className="inline-flex items-center gap-1.5 text-indigo-700 font-semibold bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full text-sm no-print">
           <Pencil size={13} /> Editando Presença
         </span>
-
         <ContadoresPresenca />
-
         <div className="flex gap-2 flex-wrap no-print">
           <button onClick={() => marcarTodos(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition">
             <CheckCircle size={15} className="text-white" /> Todos presentes
@@ -419,28 +443,19 @@ export default function Chamada({ params, navigate }) {
             <RefreshCw size={15} className="text-gray-500" /> Limpar
           </button>
         </div>
-
         <div className="relative no-print">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" placeholder="Buscar aluno..." value={busca} onChange={e => setBusca(e.target.value)}
             className="w-full border border-gray-300 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
         </div>
-
         {filtrados.length === 0
           ? <div className="text-center py-10 text-gray-400">Nenhum aluno encontrado</div>
           : <PresencaGrid />
         }
-
         <div className="pt-2 no-print flex flex-col gap-2">
-          <button onClick={handleSalvarPresenca}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white text-lg transition shadow-md bg-indigo-600 hover:bg-indigo-700"
-          >
-            <Save size={20} className="text-white" /> Salvar Presença
-          </button>
-          <button onClick={() => setModo('view')}
-            className="w-full py-2.5 rounded-xl font-semibold text-gray-600 border border-gray-200 bg-gray-50 hover:bg-gray-100 transition"
-          >
+          <BtnSalvar onClick={handleSalvarPresenca} label="Salvar Presença" />
+          <button onClick={() => setModo('view')} className="w-full py-2.5 rounded-xl font-semibold text-gray-600 border border-gray-200 bg-gray-50 hover:bg-gray-100 transition">
             Cancelar
           </button>
         </div>
@@ -448,9 +463,7 @@ export default function Chamada({ params, navigate }) {
     )
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // EDIT-PONTUAÇÃO MODE
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ── EDIT-PONTUAÇÃO ───────────────────────────────────────────────────────────
 
   if (modo === 'edit-pontuacao') return (
     <div className="space-y-4">
@@ -469,11 +482,9 @@ export default function Chamada({ params, navigate }) {
           <div className="text-xs text-gray-400">total da turma</div>
         </div>
       </div>
-
       <span className="inline-flex items-center gap-1.5 text-indigo-700 font-semibold bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full text-sm no-print">
         <Pencil size={13} /> Editando Pontuação
       </span>
-
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
           <div className="text-2xl font-bold text-green-600">{presentes}</div>
@@ -484,27 +495,17 @@ export default function Chamada({ params, navigate }) {
           <div className="text-xs font-medium text-red-500 mt-1">Ausentes</div>
         </div>
       </div>
-
       <PontuacaoLista />
-
       <div className="pt-2 no-print flex flex-col gap-2">
-        <button onClick={handleSalvarPontuacao}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white text-lg transition shadow-md bg-indigo-600 hover:bg-indigo-700"
-        >
-          <Save size={20} className="text-white" /> Salvar Pontuação
-        </button>
-        <button onClick={() => setModo('view')}
-          className="w-full py-2.5 rounded-xl font-semibold text-gray-600 border border-gray-200 bg-gray-50 hover:bg-gray-100 transition"
-        >
+        <BtnSalvar onClick={handleSalvarPontuacao} label="Salvar Pontuação" />
+        <button onClick={() => setModo('view')} className="w-full py-2.5 rounded-xl font-semibold text-gray-600 border border-gray-200 bg-gray-50 hover:bg-gray-100 transition">
           Cancelar
         </button>
       </div>
     </div>
   )
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // NOVO MODE — step 1 → step 2
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ── NOVO — etapa 2 ───────────────────────────────────────────────────────────
 
   if (etapa === 2) return (
     <div className="space-y-4">
@@ -523,7 +524,6 @@ export default function Chamada({ params, navigate }) {
           <div className="text-xs text-gray-400">total da turma</div>
         </div>
       </div>
-
       <div className="flex items-center gap-2 text-sm no-print">
         <span className="flex items-center gap-1.5 text-gray-400">
           <span className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">✓</span>
@@ -535,7 +535,6 @@ export default function Chamada({ params, navigate }) {
           Pontuações
         </span>
       </div>
-
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
           <div className="text-2xl font-bold text-green-600">{presentes}</div>
@@ -546,23 +545,21 @@ export default function Chamada({ params, navigate }) {
           <div className="text-xs font-medium text-red-500 mt-1">Ausentes</div>
         </div>
       </div>
-
       <PontuacaoLista />
-
       <div className="pt-2 no-print">
-        <button onClick={handleSalvarNovo}
-          className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white text-lg transition shadow-md ${saved ? 'bg-green-500 cursor-default' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+        <button
+          onClick={handleSalvarNovo}
+          disabled={saving || saved}
+          className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white text-lg transition shadow-md ${saved ? 'bg-green-500 cursor-default' : 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60'}`}
         >
-          {saved ? <><CheckCircle size={20} className="text-white" /> Chamada Salva!</> : <><Save size={20} className="text-white" /> Salvar Chamada</>}
+          {saved ? <><CheckCircle size={20} className="text-white" /> Chamada Salva!</> : <><Save size={20} className="text-white" /> {saving ? 'Salvando...' : 'Salvar Chamada'}</>}
         </button>
         {saved && (
           <>
             <p className="text-center text-sm text-gray-500 mt-2">
               Pontuação da turma: <strong className="text-indigo-700">{totalPontos} pontos</strong>
             </p>
-            <button onClick={() => navigate('home')}
-              className="w-full mt-2 py-2.5 rounded-xl font-semibold text-indigo-700 border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition"
-            >
+            <button onClick={() => navigate('home')} className="w-full mt-2 py-2.5 rounded-xl font-semibold text-indigo-700 border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition">
               Voltar para o início
             </button>
           </>
@@ -571,7 +568,8 @@ export default function Chamada({ params, navigate }) {
     </div>
   )
 
-  // Etapa 1
+  // ── NOVO — etapa 1 ───────────────────────────────────────────────────────────
+
   const filtrados = alunos.filter(a => a.nome.toLowerCase().includes(busca.toLowerCase()))
   return (
     <div className="space-y-4">
@@ -585,7 +583,6 @@ export default function Chamada({ params, navigate }) {
           </button>
         </div>
       } />
-
       <div className="flex items-center gap-2 text-sm no-print">
         <span className="flex items-center gap-1.5 text-indigo-700 font-semibold">
           <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">1</span>
@@ -597,9 +594,7 @@ export default function Chamada({ params, navigate }) {
           Pontuações
         </span>
       </div>
-
       <ContadoresPresenca />
-
       <div className="flex gap-2 flex-wrap no-print">
         <button onClick={() => marcarTodos(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition">
           <CheckCircle size={15} className="text-white" /> Todos presentes
@@ -611,25 +606,24 @@ export default function Chamada({ params, navigate }) {
           <RefreshCw size={15} className="text-gray-500" /> Limpar
         </button>
       </div>
-
       <div className="relative no-print">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input type="text" placeholder="Buscar aluno..." value={busca} onChange={e => setBusca(e.target.value)}
           className="w-full border border-gray-300 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
         />
       </div>
-
       {filtrados.length === 0
         ? <div className="text-center py-10 text-gray-400">Nenhum aluno encontrado</div>
         : <PresencaGrid />
       }
-
       <div className="pt-2 no-print">
-        <button onClick={handleProximo}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white text-lg transition shadow-md bg-indigo-600 hover:bg-indigo-700"
+        <button
+          onClick={handleProximo}
+          disabled={saving}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white text-lg transition shadow-md bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60"
         >
           <Star size={20} className="text-white" />
-          Próximo: Pontuações
+          {saving ? 'Salvando...' : 'Próximo: Pontuações'}
           <ChevronRight size={20} className="text-white" />
         </button>
         <p className="text-center text-xs text-gray-400 mt-2">

@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
-import { GraduationCap, ChevronUp, ChevronDown, Trash2, AlertTriangle, CheckCircle, Save, Star } from 'lucide-react'
-import { getTurmas, saveTurmas, getAlunos, getChamadas, getCategorias, saveCategorias, DEFAULT_CATEGORIAS } from '../utils/storage'
+import { GraduationCap, ChevronUp, ChevronDown, Trash2, AlertTriangle, CheckCircle, Save, Star, Users, Copy } from 'lucide-react'
+import { getTurmas, saveTurmas, getChamadas, getCategorias, saveCategorias, DEFAULT_CATEGORIAS } from '../utils/storage'
 import { getCor, CORES_LISTA } from '../utils/colors'
+import { useAuth } from '../contexts/AuthContext'
 
 // ─── Seção: Turmas ────────────────────────────────────────────────────────────
 
-function SecaoTurmas() {
-  const [turmas, setTurmas] = useState([])
+function SecaoTurmas({ igrejaId }) {
+  const [turmas, setTurmas]   = useState([])
   const [deletando, setDeletando] = useState(null)
-  const [saved, setSaved] = useState(false)
-  const [erro, setErro] = useState('')
+  const [saved, setSaved]     = useState(false)
+  const [saving, setSaving]   = useState(false)
+  const [erro, setErro]       = useState('')
 
-  useEffect(() => { setTurmas(getTurmas()) }, [])
+  useEffect(() => { getTurmas().then(setTurmas) }, [])
 
   const setField = (id, field, value) => {
     setSaved(false)
@@ -30,22 +32,21 @@ function SecaoTurmas() {
 
   const adicionarTurma = () => {
     setSaved(false)
-    const usadas = new Set(turmas.map(t => t.cor))
+    const usadas   = new Set(turmas.map(t => t.cor))
     const corLivre = CORES_LISTA.find(c => !usadas.has(c.key))?.key || CORES_LISTA[turmas.length % CORES_LISTA.length].key
-    setTurmas(prev => [
-      ...prev,
-      {
-        id: `turma_${Date.now()}`,
-        nome: `Turma ${String.fromCharCode(65 + prev.length)}`,
-        cor: corLivre,
-      },
-    ])
+    setTurmas(prev => [...prev, {
+      id:   crypto.randomUUID(),
+      nome: `Turma ${String.fromCharCode(65 + prev.length)}`,
+      cor:  corLivre,
+    }])
   }
 
-  const pedirDelete = (id) => {
-    const temAlunos = getAlunos(id).length > 0
-    const temChamadas = getChamadas(id).length > 0
-    setDeletando({ id, temAlunos, temChamadas })
+  const pedirDelete = async (id) => {
+    const [alunos, chamadas] = await Promise.all([
+      import('../utils/storage').then(m => m.getAlunos(id)),
+      getChamadas(id),
+    ])
+    setDeletando({ id, temAlunos: alunos.length > 0, temChamadas: chamadas.length > 0 })
   }
 
   const confirmarDelete = () => {
@@ -54,10 +55,12 @@ function SecaoTurmas() {
     setDeletando(null)
   }
 
-  const salvar = () => {
+  const salvar = async () => {
     const vazio = turmas.find(t => !t.nome.trim())
     if (vazio) { setErro('Todas as turmas precisam ter um nome.'); return }
-    saveTurmas(turmas.map(t => ({ ...t, nome: t.nome.trim() })))
+    setSaving(true)
+    await saveTurmas(turmas.map(t => ({ ...t, nome: t.nome.trim() })), igrejaId)
+    setSaving(false)
     setSaved(true)
   }
 
@@ -68,10 +71,7 @@ function SecaoTurmas() {
           <h3 className="text-lg font-bold text-gray-800">Turmas</h3>
           <p className="text-sm text-gray-500">Defina nomes, cores e a quantidade de turmas do sistema.</p>
         </div>
-        <button
-          onClick={adicionarTurma}
-          className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition flex-shrink-0"
-        >
+        <button onClick={adicionarTurma} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition flex-shrink-0">
           + Nova turma
         </button>
       </div>
@@ -88,62 +88,30 @@ function SecaoTurmas() {
             return (
               <div key={turma.id} className={`rounded-xl border-2 ${cor.bg} ${cor.border} p-3`}>
                 <div className="flex items-center gap-2 flex-wrap">
-
-                  {/* Reordenar */}
                   <div className="flex flex-col gap-0.5 flex-shrink-0">
-                    <button
-                      onClick={() => mover(idx, -1)}
-                      disabled={idx === 0}
-                      className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-20 rounded transition"
-                      title="Mover para cima"
-                    >
+                    <button onClick={() => mover(idx, -1)} disabled={idx === 0} className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-20 rounded transition" title="Mover para cima">
                       <ChevronUp size={14} />
                     </button>
-                    <button
-                      onClick={() => mover(idx, 1)}
-                      disabled={idx === turmas.length - 1}
-                      className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-20 rounded transition"
-                      title="Mover para baixo"
-                    >
+                    <button onClick={() => mover(idx, 1)} disabled={idx === turmas.length - 1} className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-20 rounded transition" title="Mover para baixo">
                       <ChevronDown size={14} />
                     </button>
                   </div>
-
-                  {/* Número */}
                   <span className="text-sm font-bold text-gray-400 w-5 text-center flex-shrink-0">{idx + 1}</span>
-
-                  {/* Nome */}
                   <input
                     type="text"
                     value={turma.nome}
                     onChange={e => setField(turma.id, 'nome', e.target.value)}
                     placeholder="Nome da turma"
-                    className={`flex-1 min-w-32 border rounded-lg px-3 py-1.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300
-                      ${!turma.nome.trim() ? 'border-red-400' : 'border-gray-300'}`}
+                    className={`flex-1 min-w-32 border rounded-lg px-3 py-1.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 ${!turma.nome.trim() ? 'border-red-400' : 'border-gray-300'}`}
                   />
-
-                  {/* Paleta de cores */}
                   <div className="flex gap-1.5 flex-wrap">
                     {CORES_LISTA.map(c => (
-                      <button
-                        key={c.key}
-                        onClick={() => setField(turma.id, 'cor', c.key)}
-                        title={c.label}
-                        className={`w-5 h-5 rounded-full ${c.dot} transition-transform
-                          ${turma.cor === c.key
-                            ? 'ring-2 ring-offset-1 ring-gray-600 scale-125'
-                            : 'hover:scale-110 opacity-70 hover:opacity-100'
-                          }`}
+                      <button key={c.key} onClick={() => setField(turma.id, 'cor', c.key)} title={c.label}
+                        className={`w-5 h-5 rounded-full ${c.dot} transition-transform ${turma.cor === c.key ? 'ring-2 ring-offset-1 ring-gray-600 scale-125' : 'hover:scale-110 opacity-70 hover:opacity-100'}`}
                       />
                     ))}
                   </div>
-
-                  {/* Deletar */}
-                  <button
-                    onClick={() => pedirDelete(turma.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition flex-shrink-0"
-                    title="Remover turma"
-                  >
+                  <button onClick={() => pedirDelete(turma.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition flex-shrink-0" title="Remover turma">
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -153,32 +121,20 @@ function SecaoTurmas() {
         </div>
       )}
 
-      {/* Salvar */}
       <div className="flex items-center gap-3 pt-3 border-t border-gray-200">
-        <button
-          onClick={salvar}
-          disabled={turmas.some(t => !t.nome.trim())}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-white transition
-            ${saved
-              ? 'bg-green-500 cursor-default'
-              : 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed'
-            }`}
+        <button onClick={salvar} disabled={saving || turmas.some(t => !t.nome.trim())}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-white transition ${saved ? 'bg-green-500 cursor-default' : 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed'}`}
         >
-          {saved
-            ? <><CheckCircle size={16} className="text-white" /> Salvo!</>
-            : <><Save size={16} className="text-white" /> Salvar alterações</>
-          }
+          {saved ? <><CheckCircle size={16} className="text-white" /> Salvo!</> : <><Save size={16} className="text-white" /> {saving ? 'Salvando...' : 'Salvar alterações'}</>}
         </button>
         {erro && <p className="text-red-500 text-sm">{erro}</p>}
         {saved && <p className="text-green-600 text-sm">As turmas foram atualizadas.</p>}
       </div>
 
-      {/* Modal de confirmação de exclusão */}
       {deletando && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <h4 className="text-lg font-bold text-gray-800 mb-3">Remover esta turma?</h4>
-
             {(deletando.temAlunos || deletando.temChamadas) && (
               <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-800">
                 <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
@@ -187,30 +143,14 @@ function SecaoTurmas() {
                   {deletando.temAlunos && <strong> alunos matriculados</strong>}
                   {deletando.temAlunos && deletando.temChamadas && ' e'}
                   {deletando.temChamadas && <strong> chamadas registradas</strong>}.
-                  <p className="mt-1 text-amber-700">
-                    Os dados ficam armazenados, mas a turma não aparecerá mais na tela inicial. Salve o backup antes de continuar.
-                  </p>
+                  <p className="mt-1 text-amber-700">Os dados ficam no banco, mas a turma não aparecerá mais na tela inicial.</p>
                 </div>
               </div>
             )}
-
-            <p className="text-gray-500 text-sm mb-5">
-              A remoção só é aplicada ao clicar em "Salvar alterações".
-            </p>
-
+            <p className="text-gray-500 text-sm mb-5">A remoção só é aplicada ao clicar em "Salvar alterações".</p>
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setDeletando(null)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmarDelete}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition"
-              >
-                Remover
-              </button>
+              <button onClick={() => setDeletando(null)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">Cancelar</button>
+              <button onClick={confirmarDelete} className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition">Remover</button>
             </div>
           </div>
         </div>
@@ -221,24 +161,24 @@ function SecaoTurmas() {
 
 // ─── Seção: Pontuação ─────────────────────────────────────────────────────────
 
-function SecaoPontuacao() {
-  const [cats, setCats] = useState([])
+function SecaoPontuacao({ igrejaId }) {
+  const [cats, setCats]   = useState([])
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => { setCats(getCategorias()) }, [])
+  useEffect(() => { getCategorias().then(setCats) }, [])
 
   const setField = (id, field, value) => {
     setSaved(false)
     setCats(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c))
   }
 
-  const restaurar = () => {
-    setCats(DEFAULT_CATEGORIAS)
-    setSaved(false)
-  }
+  const restaurar = () => { setCats(DEFAULT_CATEGORIAS); setSaved(false) }
 
-  const salvar = () => {
-    saveCategorias(cats)
+  const salvar = async () => {
+    setSaving(true)
+    await saveCategorias(cats, igrejaId)
+    setSaving(false)
     setSaved(true)
   }
 
@@ -249,41 +189,26 @@ function SecaoPontuacao() {
           <h3 className="text-lg font-bold text-gray-800">Pontuação</h3>
           <p className="text-sm text-gray-500">Configure os critérios e pontos de cada categoria da EBD.</p>
         </div>
-        <button
-          onClick={restaurar}
-          className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50 transition flex-shrink-0"
-        >
+        <button onClick={restaurar} className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50 transition flex-shrink-0">
           Restaurar padrão
         </button>
       </div>
 
       <div className="space-y-2">
         {cats.map(cat => (
-          <div key={cat.id} className={`flex items-center gap-3 rounded-xl border p-3 transition
-            ${cat.ativo ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100 opacity-60'}`}
-          >
-            {/* Toggle ativo — presença sempre ativa */}
+          <div key={cat.id} className={`flex items-center gap-3 rounded-xl border p-3 transition ${cat.ativo ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
             <button
               onClick={() => cat.id !== 'presenca' && setField(cat.id, 'ativo', !cat.ativo)}
               disabled={cat.id === 'presenca'}
-              className={`w-10 h-6 rounded-full flex-shrink-0 transition relative
-                ${cat.ativo ? 'bg-indigo-600' : 'bg-gray-300'}
-                ${cat.id === 'presenca' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+              className={`w-10 h-6 rounded-full flex-shrink-0 transition relative ${cat.ativo ? 'bg-indigo-600' : 'bg-gray-300'} ${cat.id === 'presenca' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
               title={cat.id === 'presenca' ? 'Presença sempre ativa' : cat.ativo ? 'Desativar' : 'Ativar'}
             >
-              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all
-                ${cat.ativo ? 'left-5' : 'left-1'}`} />
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${cat.ativo ? 'left-5' : 'left-1'}`} />
             </button>
-
-            {/* Nome */}
             <span className="flex-1 text-sm font-medium text-gray-700">{cat.nome}</span>
-
-            {/* Pontos */}
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <input
-                type="number"
-                min="0"
-                value={cat.pontos}
+                type="number" min="0" value={cat.pontos}
                 onChange={e => setField(cat.id, 'pontos', parseInt(e.target.value) || 0)}
                 className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-indigo-300"
               />
@@ -296,15 +221,10 @@ function SecaoPontuacao() {
       </div>
 
       <div className="flex items-center gap-3 pt-3 border-t border-gray-200">
-        <button
-          onClick={salvar}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-white transition
-            ${saved ? 'bg-green-500 cursor-default' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+        <button onClick={salvar} disabled={saving}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-white transition ${saved ? 'bg-green-500 cursor-default' : 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40'}`}
         >
-          {saved
-            ? <><CheckCircle size={16} className="text-white" /> Salvo!</>
-            : <><Save size={16} className="text-white" /> Salvar pontuação</>
-          }
+          {saved ? <><CheckCircle size={16} className="text-white" /> Salvo!</> : <><Save size={16} className="text-white" /> {saving ? 'Salvando...' : 'Salvar pontuação'}</>}
         </button>
         {saved && <p className="text-green-600 text-sm">Pontuação atualizada.</p>}
       </div>
@@ -312,34 +232,77 @@ function SecaoPontuacao() {
   )
 }
 
-// ─── Seções disponíveis ───────────────────────────────────────────────────────
-// Para adicionar uma nova seção: inclua um objeto aqui e o componente correspondente em CONTEUDO.
-// Use ícones do lucide-react no campo Icon.
+// ─── Seção: Usuários ──────────────────────────────────────────────────────────
 
-const SECOES = [
-  {
-    id: 'turmas',
-    label: 'Turmas',
-    Icon: GraduationCap,
-    desc: 'Nomes, cores e quantidade',
-  },
-  {
-    id: 'pontuacao',
-    label: 'Pontuação',
-    Icon: Star,
-    desc: 'Critérios e pontos da EBD',
-  },
-]
+function SecaoUsuarios({ igrejaId }) {
+  const [copiado, setCopiado] = useState(false)
 
-const CONTEUDO = {
-  turmas:    <SecaoTurmas />,
-  pontuacao: <SecaoPontuacao />,
+  const copiar = () => {
+    navigator.clipboard.writeText(igrejaId)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-lg font-bold text-gray-800">Usuários</h3>
+        <p className="text-sm text-gray-500">Gerencie quem tem acesso ao sistema da sua igreja.</p>
+      </div>
+
+      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+        <p className="text-sm font-semibold text-indigo-800">ID da sua igreja</p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 bg-white border border-indigo-200 rounded-lg px-3 py-2 text-xs text-gray-700 break-all">{igrejaId}</code>
+          <button onClick={copiar} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition flex-shrink-0" title="Copiar">
+            {copiado ? <CheckCircle size={18} className="text-green-600" /> : <Copy size={18} />}
+          </button>
+        </div>
+        <p className="text-xs text-indigo-600">Use este ID ao criar contas de secretária no painel do Supabase.</p>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+        <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          <Users size={16} className="text-indigo-600" /> Como criar uma conta de Secretária
+        </p>
+        <ol className="text-sm text-gray-600 space-y-2 list-decimal list-inside">
+          <li>Acesse o painel do Supabase → Authentication → Users</li>
+          <li>Clique em <strong>Add User</strong> e informe o e-mail e senha</li>
+          <li>Em <strong>User Metadata</strong>, insira:
+            <pre className="mt-1 bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs overflow-x-auto">
+{`{
+  "role": "secretaria",
+  "igreja_id": "${igrejaId}",
+  "nome": "Nome da Secretária"
+}`}
+            </pre>
+          </li>
+          <li>Clique em <strong>Create User</strong></li>
+        </ol>
+        <p className="text-xs text-gray-400">A secretária poderá fazer chamadas e matricular alunos.</p>
+      </div>
+    </div>
+  )
 }
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function Configuracoes() {
+  const { profile } = useAuth()
+  const igrejaId    = profile?.igreja_id
   const [secao, setSecao] = useState('turmas')
+
+  const SECOES = [
+    { id: 'turmas',    label: 'Turmas',    Icon: GraduationCap, desc: 'Nomes, cores e quantidade' },
+    { id: 'pontuacao', label: 'Pontuação', Icon: Star,          desc: 'Critérios e pontos da EBD' },
+    { id: 'usuarios',  label: 'Usuários',  Icon: Users,         desc: 'Secretárias e acessos' },
+  ]
+
+  const CONTEUDO = {
+    turmas:    <SecaoTurmas    igrejaId={igrejaId} />,
+    pontuacao: <SecaoPontuacao igrejaId={igrejaId} />,
+    usuarios:  <SecaoUsuarios  igrejaId={igrejaId} />,
+  }
 
   return (
     <div className="space-y-5">
@@ -349,20 +312,14 @@ export default function Configuracoes() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-5 items-start">
-        {/* Sidebar de navegação */}
         <nav className="w-full sm:w-52 flex-shrink-0">
           <ul className="space-y-1">
             {SECOES.map(s => {
               const ativo = secao === s.id
               return (
                 <li key={s.id}>
-                  <button
-                    onClick={() => setSecao(s.id)}
-                    className={`w-full text-left px-4 py-3 rounded-xl text-sm transition
-                      ${ativo
-                        ? 'bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold'
-                        : 'text-gray-600 hover:bg-gray-100 border border-transparent'
-                      }`}
+                  <button onClick={() => setSecao(s.id)}
+                    className={`w-full text-left px-4 py-3 rounded-xl text-sm transition ${ativo ? 'bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold' : 'text-gray-600 hover:bg-gray-100 border border-transparent'}`}
                   >
                     <div className="flex items-center gap-2 font-medium">
                       <s.Icon size={16} className={ativo ? 'text-indigo-600' : 'text-gray-500'} />
@@ -376,7 +333,6 @@ export default function Configuracoes() {
           </ul>
         </nav>
 
-        {/* Conteúdo da seção selecionada */}
         <div className="flex-1 bg-white border border-gray-200 rounded-xl p-5 w-full">
           {CONTEUDO[secao] ?? <p className="text-gray-400">Seção não encontrada.</p>}
         </div>

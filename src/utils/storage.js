@@ -1,33 +1,33 @@
-import { formatDate } from './dates'
+import { supabase } from './supabase'
 
-const KEYS = {
-  TURMAS: 'chamada_turmas',
-  ALUNOS: 'chamada_alunos',
-  CHAMADAS: 'chamada_registros',
-  CATEGORIAS: 'chamada_categorias',
-}
+// ─── Mappers (Supabase snake_case → App camelCase) ───────────────────────────
+
+const mapTurma     = t => ({ id: t.id, nome: t.nome, cor: t.cor })
+const mapAluno     = a => ({ id: a.id, nome: a.nome, matricula: a.matricula || '', turmaId: a.turma_id })
+const mapCategoria = c => ({ id: c.cat_id, nome: c.nome, pontos: c.pontos, tipo: c.tipo, ativo: c.ativo })
+const mapRegistro  = r => ({ alunoId: r.aluno_id, presente: r.presente, categorias: r.categorias || {} })
+const mapChamada   = c => ({
+  id:        c.id,
+  turmaId:   c.turma_id,
+  data:      c.data,
+  registros: (c.registros_chamada || []).map(mapRegistro),
+})
+
+// ─── Categorias padrão ────────────────────────────────────────────────────────
 
 export const DEFAULT_CATEGORIAS = [
-  { id: 'presenca',        nome: 'Presença',         pontos: 10, tipo: 'boolean',  ativo: true },
+  { id: 'presenca',        nome: 'Presença',        pontos: 10, tipo: 'boolean',  ativo: true },
   { id: 'ausencia',        nome: 'Ausência',         pontos: 5,  tipo: 'ausencia', ativo: true },
   { id: 'biblia',          nome: 'Bíblia',           pontos: 5,  tipo: 'boolean',  ativo: true },
   { id: 'revista',         nome: 'Revista',          pontos: 5,  tipo: 'boolean',  ativo: true },
-  { id: 'licao_lida',     nome: 'Lição Lida',       pontos: 5,  tipo: 'boolean',  ativo: true },
+  { id: 'licao_lida',      nome: 'Lição Lida',       pontos: 5,  tipo: 'boolean',  ativo: true },
   { id: 'visitante',       nome: 'Visitante',        pontos: 10, tipo: 'numeric',  ativo: true },
   { id: 'jejum',           nome: 'Jejum',            pontos: 5,  tipo: 'boolean',  ativo: true },
   { id: 'culto_domestico', nome: 'Culto Doméstico',  pontos: 5,  tipo: 'boolean',  ativo: true },
   { id: 'oferta',          nome: 'Oferta',           pontos: 10, tipo: 'currency', ativo: true },
 ]
 
-export const getCategorias = () => {
-  const data = localStorage.getItem(KEYS.CATEGORIAS)
-  if (!data) return DEFAULT_CATEGORIAS
-  return JSON.parse(data)
-}
-
-export const saveCategorias = (cats) => {
-  localStorage.setItem(KEYS.CATEGORIAS, JSON.stringify(cats))
-}
+// ─── Cálculo de pontos (funções puras, sem I/O) ───────────────────────────────
 
 export const calcularPontosRegistro = (registro, categorias) => {
   if (!registro.presente) {
@@ -57,137 +57,173 @@ export const calcularPontosChamada = (chamada, categorias) => {
   return chamada.registros.reduce((sum, r) => sum + calcularPontosRegistro(r, categorias), 0)
 }
 
-export const migrarDatasParaDomingo = () => {
-  const chamadas = getChamadas()
-  const corrigidas = chamadas.map(c => {
-    const d = new Date(c.data + 'T12:00:00')
-    const dow = d.getDay()
-    if (dow !== 0) {
-      d.setDate(d.getDate() - dow) // qualquer dia → domingo anterior
-      const novaData = formatDate(d)
-      return { ...c, id: `${c.turmaId}_${novaData}`, data: novaData }
-    }
-    return c
+// ─── Turmas ───────────────────────────────────────────────────────────────────
+
+export const getTurmas = async () => {
+  const { data, error } = await supabase
+    .from('turmas')
+    .select('*')
+    .eq('ativo', true)
+    .order('ordem')
+  if (error) throw error
+  return data.map(mapTurma)
+}
+
+export const saveTurmas = async (turmas, igrejaId) => {
+  const { data: existing } = await supabase
+    .from('turmas')
+    .select('id')
+    .eq('igreja_id', igrejaId)
+
+  const existingIds = new Set((existing || []).map(t => t.id))
+  const newIds      = new Set(turmas.map(t => t.id))
+  const toDelete    = [...existingIds].filter(id => !newIds.has(id))
+
+  if (toDelete.length > 0) {
+    await supabase.from('turmas').delete().in('id', toDelete)
+  }
+
+  if (turmas.length > 0) {
+    const { error } = await supabase.from('turmas').upsert(
+      turmas.map((t, idx) => ({
+        id:        t.id,
+        nome:      t.nome,
+        cor:       t.cor,
+        ordem:     idx,
+        ativo:     true,
+        igreja_id: igrejaId,
+      }))
+    )
+    if (error) throw error
+  }
+}
+
+// ─── Alunos ───────────────────────────────────────────────────────────────────
+
+export const getAlunos = async (turmaId = null) => {
+  let query = supabase.from('alunos').select('*').eq('ativo', true).order('nome')
+  if (turmaId) query = query.eq('turma_id', turmaId)
+  const { data, error } = await query
+  if (error) throw error
+  return data.map(mapAluno)
+}
+
+export const saveAluno = async (aluno, igrejaId) => {
+  const { error } = await supabase.from('alunos').upsert({
+    id:        aluno.id,
+    nome:      aluno.nome,
+    matricula: aluno.matricula || '',
+    turma_id:  aluno.turmaId,
+    ativo:     true,
+    igreja_id: igrejaId,
   })
-  const houveMudanca = chamadas.some((c, i) => c.data !== corrigidas[i].data)
-  if (houveMudanca) localStorage.setItem(KEYS.CHAMADAS, JSON.stringify(corrigidas))
+  if (error) throw error
 }
 
-export const getDatasComChamada = () => {
-  const chamadas = getChamadas()
-  const datas = [...new Set(chamadas.map(c => c.data))]
-  return datas.sort((a, b) => b.localeCompare(a))
+export const deleteAluno = async (id) => {
+  const { error } = await supabase.from('alunos').update({ ativo: false }).eq('id', id)
+  if (error) throw error
 }
 
-export const getRankingPorData = (data) => {
-  const turmas = getTurmas()
-  const categorias = getCategorias()
+// ─── Categorias ───────────────────────────────────────────────────────────────
+
+export const getCategorias = async () => {
+  const { data, error } = await supabase
+    .from('categorias')
+    .select('*')
+    .order('ordem')
+  if (error) throw error
+  return data.map(mapCategoria)
+}
+
+export const saveCategorias = async (cats, igrejaId) => {
+  const { error } = await supabase.from('categorias').upsert(
+    cats.map((c, idx) => ({
+      cat_id:    c.id,
+      nome:      c.nome,
+      pontos:    c.pontos,
+      tipo:      c.tipo,
+      ativo:     c.ativo,
+      ordem:     idx,
+      igreja_id: igrejaId,
+    })),
+    { onConflict: 'igreja_id,cat_id' }
+  )
+  if (error) throw error
+}
+
+// ─── Chamadas ─────────────────────────────────────────────────────────────────
+
+export const getChamadas = async (turmaId = null) => {
+  let query = supabase
+    .from('chamadas')
+    .select('*, registros_chamada(*)')
+    .order('data', { ascending: false })
+  if (turmaId) query = query.eq('turma_id', turmaId)
+  const { data, error } = await query
+  if (error) throw error
+  return data.map(mapChamada)
+}
+
+export const getChamadaByData = async (turmaId, data) => {
+  const { data: chamada, error } = await supabase
+    .from('chamadas')
+    .select('*, registros_chamada(*)')
+    .eq('turma_id', turmaId)
+    .eq('data', data)
+    .maybeSingle()
+  if (error) throw error
+  return chamada ? mapChamada(chamada) : null
+}
+
+export const saveChamada = async (chamadaData, igrejaId) => {
+  const { data: chamada, error: errChamada } = await supabase
+    .from('chamadas')
+    .upsert(
+      { turma_id: chamadaData.turmaId, data: chamadaData.data, igreja_id: igrejaId },
+      { onConflict: 'turma_id,data' }
+    )
+    .select()
+    .single()
+  if (errChamada) throw errChamada
+
+  const registros = chamadaData.registros.map(r => ({
+    chamada_id: chamada.id,
+    aluno_id:   r.alunoId,
+    presente:   r.presente,
+    categorias: r.categorias || {},
+    igreja_id:  igrejaId,
+  }))
+
+  const { error: errReg } = await supabase
+    .from('registros_chamada')
+    .upsert(registros, { onConflict: 'chamada_id,aluno_id' })
+  if (errReg) throw errReg
+}
+
+// ─── Ranking e datas ──────────────────────────────────────────────────────────
+
+export const getDatasComChamada = async () => {
+  const { data, error } = await supabase
+    .from('chamadas')
+    .select('data')
+    .order('data', { ascending: false })
+  if (error) throw error
+  return [...new Set(data.map(c => c.data))]
+}
+
+export const getRankingPorData = async (data) => {
+  const [turmas, categorias] = await Promise.all([getTurmas(), getCategorias()])
+  const chamadas = await Promise.all(turmas.map(t => getChamadaByData(t.id, data)))
   return turmas
-    .map(turma => {
-      const chamada = getChamadaByData(turma.id, data)
-      return { turma, pontos: calcularPontosChamada(chamada, categorias), temChamada: !!chamada }
-    })
+    .map((turma, i) => ({
+      turma,
+      pontos:     calcularPontosChamada(chamadas[i], categorias),
+      temChamada: !!chamadas[i],
+    }))
     .filter(r => r.temChamada)
     .sort((a, b) => b.pontos - a.pontos)
 }
 
-const DEFAULT_TURMAS = [
-  { id: '1', nome: 'Turma A', cor: 'indigo' },
-  { id: '2', nome: 'Turma B', cor: 'emerald' },
-  { id: '3', nome: 'Turma C', cor: 'amber' },
-  { id: '4', nome: 'Turma D', cor: 'rose' },
-  { id: '5', nome: 'Turma E', cor: 'violet' },
-  { id: '6', nome: 'Turma F', cor: 'cyan' },
-]
-
-export const getTurmas = () => {
-  const data = localStorage.getItem(KEYS.TURMAS)
-  if (!data) {
-    localStorage.setItem(KEYS.TURMAS, JSON.stringify(DEFAULT_TURMAS))
-    return DEFAULT_TURMAS
-  }
-  return JSON.parse(data)
-}
-
-export const saveTurmas = (turmas) => {
-  localStorage.setItem(KEYS.TURMAS, JSON.stringify(turmas))
-}
-
-export const updateTurma = (turma) => {
-  const turmas = getTurmas()
-  const idx = turmas.findIndex(t => t.id === turma.id)
-  if (idx >= 0) {
-    turmas[idx] = turma
-    localStorage.setItem(KEYS.TURMAS, JSON.stringify(turmas))
-  }
-}
-
-export const getAlunos = (turmaId = null) => {
-  const data = localStorage.getItem(KEYS.ALUNOS)
-  const alunos = data ? JSON.parse(data) : []
-  return turmaId ? alunos.filter(a => a.turmaId === turmaId) : alunos
-}
-
-export const saveAluno = (aluno) => {
-  const alunos = getAlunos()
-  const idx = alunos.findIndex(a => a.id === aluno.id)
-  if (idx >= 0) alunos[idx] = aluno
-  else alunos.push(aluno)
-  localStorage.setItem(KEYS.ALUNOS, JSON.stringify(alunos))
-}
-
-export const deleteAluno = (id) => {
-  const alunos = getAlunos().filter(a => a.id !== id)
-  localStorage.setItem(KEYS.ALUNOS, JSON.stringify(alunos))
-}
-
-export const getChamadas = (turmaId = null) => {
-  const data = localStorage.getItem(KEYS.CHAMADAS)
-  const chamadas = data ? JSON.parse(data) : []
-  return turmaId ? chamadas.filter(c => c.turmaId === turmaId) : chamadas
-}
-
-export const saveChamada = (chamada) => {
-  const chamadas = getChamadas()
-  const idx = chamadas.findIndex(c => c.id === chamada.id)
-  if (idx >= 0) chamadas[idx] = chamada
-  else chamadas.push(chamada)
-  localStorage.setItem(KEYS.CHAMADAS, JSON.stringify(chamadas))
-}
-
-export const getChamadaByData = (turmaId, data) => {
-  return getChamadas(turmaId).find(c => c.data === data) || null
-}
-
-export const exportData = () => {
-  const data = {
-    turmas: getTurmas(),
-    alunos: getAlunos(),
-    chamadas: getChamadas(),
-    exportedAt: new Date().toISOString(),
-  }
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `backup-chamada-${new Date().toISOString().split('T')[0]}.json`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-export const importData = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target.result)
-        if (data.turmas) localStorage.setItem(KEYS.TURMAS, JSON.stringify(data.turmas))
-        if (data.alunos) localStorage.setItem(KEYS.ALUNOS, JSON.stringify(data.alunos))
-        if (data.chamadas) localStorage.setItem(KEYS.CHAMADAS, JSON.stringify(data.chamadas))
-        resolve()
-      } catch (err) {
-        reject(err)
-      }
-    }
-    reader.readAsText(file)
-  })
+// migrarDatasParaDomingo não é necessária com Supabase (datas já são corretas)
+export const migrarDatasParaDomingo = () => {}
