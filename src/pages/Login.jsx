@@ -29,7 +29,7 @@ export default function Login() {
       }}
     >
       {/* Card de login — posicionado na área vazia abaixo do título */}
-      <div className="flex flex-1 items-center justify-center" style={{ paddingTop: '44vh' }}>
+      <div className="flex flex-1 items-center justify-center">
       <div className="w-full max-w-sm mx-4">
         <div
           className="rounded-2xl p-8 shadow-2xl border border-white/10"
