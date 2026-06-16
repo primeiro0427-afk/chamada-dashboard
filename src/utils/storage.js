@@ -230,6 +230,14 @@ export const migrarDatasParaDomingo = () => {}
 
 // ─── Importar backup do localStorage ─────────────────────────────────────────
 
+const corrigirParaDomingo = (dataStr) => {
+  const d = new Date(dataStr + 'T12:00:00')
+  const dow = d.getDay()
+  if (dow === 0) return dataStr
+  d.setDate(d.getDate() - dow)
+  return d.toISOString().split('T')[0]
+}
+
 export const importarBackup = async (dados, igrejaId) => {
   const { turmas = [], alunos = [], chamadas = [] } = dados
 
@@ -274,10 +282,11 @@ export const importarBackup = async (dados, igrejaId) => {
     const novaTurmaId = turmaIdMap[chamada.turmaId]
     if (!novaTurmaId) continue
 
+    const dataCorrigida = corrigirParaDomingo(chamada.data)
     const { data: novaChamada, error: errChamada } = await supabase
       .from('chamadas')
       .upsert(
-        { turma_id: novaTurmaId, data: chamada.data, igreja_id: igrejaId },
+        { turma_id: novaTurmaId, data: dataCorrigida, igreja_id: igrejaId },
         { onConflict: 'turma_id,data' }
       )
       .select()
