@@ -227,3 +227,81 @@ export const getRankingPorData = async (data) => {
 
 // migrarDatasParaDomingo não é necessária com Supabase (datas já são corretas)
 export const migrarDatasParaDomingo = () => {}
+
+// ─── Importar backup do localStorage ─────────────────────────────────────────
+
+export const importarBackup = async (dados, igrejaId) => {
+  const { turmas = [], alunos = [], chamadas = [] } = dados
+
+  const turmaIdMap = {}
+  const alunoIdMap = {}
+
+  // 1. Turmas
+  if (turmas.length > 0) {
+    const turmasNovas = turmas.map((t, idx) => {
+      const novoId = crypto.randomUUID()
+      turmaIdMap[t.id] = novoId
+      return { id: novoId, nome: t.nome, cor: t.cor || 'indigo', ordem: idx, ativo: true, igreja_id: igrejaId }
+    })
+    const { error } = await supabase.from('turmas').upsert(turmasNovas)
+    if (error) throw error
+  }
+
+  // 2. Alunos
+  if (alunos.length > 0) {
+    const alunosNovos = alunos
+      .map(a => {
+        const novoId = crypto.randomUUID()
+        alunoIdMap[a.id] = novoId
+        return {
+          id:        novoId,
+          nome:      a.nome,
+          matricula: a.matricula || '',
+          turma_id:  turmaIdMap[a.turmaId],
+          ativo:     true,
+          igreja_id: igrejaId,
+        }
+      })
+      .filter(a => a.turma_id)
+    if (alunosNovos.length > 0) {
+      const { error } = await supabase.from('alunos').upsert(alunosNovos)
+      if (error) throw error
+    }
+  }
+
+  // 3. Chamadas + registros
+  for (const chamada of chamadas) {
+    const novaTurmaId = turmaIdMap[chamada.turmaId]
+    if (!novaTurmaId) continue
+
+    const { data: novaChamada, error: errChamada } = await supabase
+      .from('chamadas')
+      .upsert(
+        { turma_id: novaTurmaId, data: chamada.data, igreja_id: igrejaId },
+        { onConflict: 'turma_id,data' }
+      )
+      .select()
+      .single()
+    if (errChamada) continue
+
+    const registros = (chamada.registros || [])
+      .map(r => {
+        const novoAlunoId = alunoIdMap[r.alunoId]
+        if (!novoAlunoId) return null
+        return {
+          chamada_id: novaChamada.id,
+          aluno_id:   novoAlunoId,
+          presente:   r.presente,
+          categorias: r.categorias || {},
+          igreja_id:  igrejaId,
+        }
+      })
+      .filter(Boolean)
+
+    if (registros.length > 0) {
+      await supabase
+        .from('registros_chamada')
+        .upsert(registros, { onConflict: 'chamada_id,aluno_id' })
+    }
+  }
+}

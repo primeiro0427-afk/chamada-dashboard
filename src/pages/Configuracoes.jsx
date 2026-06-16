@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { GraduationCap, ChevronUp, ChevronDown, Trash2, AlertTriangle, CheckCircle, Save, Star, Users, Copy } from 'lucide-react'
-import { getTurmas, saveTurmas, getChamadas, getCategorias, saveCategorias, DEFAULT_CATEGORIAS } from '../utils/storage'
+import { GraduationCap, ChevronUp, ChevronDown, Trash2, AlertTriangle, CheckCircle, Save, Star, Users, Copy, Upload } from 'lucide-react'
+import { getTurmas, saveTurmas, getChamadas, getCategorias, saveCategorias, DEFAULT_CATEGORIAS, importarBackup } from '../utils/storage'
 import { getCor, CORES_LISTA } from '../utils/colors'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -285,6 +285,82 @@ function SecaoUsuarios({ igrejaId }) {
   )
 }
 
+// ─── Seção: Importar Backup ───────────────────────────────────────────────────
+
+function SecaoImportar({ igrejaId }) {
+  const [status, setStatus]   = useState(null) // null | 'loading' | 'ok' | 'erro'
+  const [msg, setMsg]         = useState('')
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setStatus('loading')
+    setMsg('')
+    try {
+      const texto = await file.text()
+      const dados = JSON.parse(texto)
+      if (!dados.turmas && !dados.alunos && !dados.chamadas) {
+        throw new Error('Arquivo inválido — não parece um backup do sistema.')
+      }
+      await importarBackup(dados, igrejaId)
+      setStatus('ok')
+      setMsg(`Importado: ${dados.turmas?.length ?? 0} turmas, ${dados.alunos?.length ?? 0} alunos, ${dados.chamadas?.length ?? 0} chamadas.`)
+    } catch (err) {
+      setStatus('erro')
+      setMsg(err.message || 'Erro ao importar.')
+    }
+    e.target.value = ''
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-lg font-bold text-gray-800">Importar Backup</h3>
+        <p className="text-sm text-gray-500">Importe os dados do sistema antigo (arquivo JSON de backup).</p>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+        <p className="font-semibold mb-1">Antes de importar:</p>
+        <ul className="list-disc list-inside space-y-1 text-amber-700">
+          <li>Acesse o sistema antigo no seu computador</li>
+          <li>Vá em <strong>Início → Exportar Backup</strong> e salve o arquivo JSON</li>
+          <li>Volte aqui e selecione o arquivo abaixo</li>
+        </ul>
+      </div>
+
+      <label className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl p-8 cursor-pointer transition
+        ${status === 'loading' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50'}`}>
+        <Upload size={32} className={status === 'loading' ? 'text-indigo-400' : 'text-gray-400'} />
+        <span className="text-sm font-medium text-gray-600">
+          {status === 'loading' ? 'Importando, aguarde...' : 'Clique para selecionar o arquivo JSON'}
+        </span>
+        <input type="file" accept=".json" onChange={handleFile} className="hidden" disabled={status === 'loading'} />
+      </label>
+
+      {status === 'ok' && (
+        <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
+          <CheckCircle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold">Importação concluída!</p>
+            <p className="text-green-700 mt-0.5">{msg}</p>
+            <p className="text-green-600 mt-1">Volte para o Início para ver os dados importados.</p>
+          </div>
+        </div>
+      )}
+
+      {status === 'erro' && (
+        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800">
+          <AlertTriangle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold">Erro na importação</p>
+            <p className="text-red-700 mt-0.5">{msg}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function Configuracoes() {
@@ -296,12 +372,14 @@ export default function Configuracoes() {
     { id: 'turmas',    label: 'Turmas',    Icon: GraduationCap, desc: 'Nomes, cores e quantidade' },
     { id: 'pontuacao', label: 'Pontuação', Icon: Star,          desc: 'Critérios e pontos da EBD' },
     { id: 'usuarios',  label: 'Usuários',  Icon: Users,         desc: 'Secretárias e acessos' },
+    { id: 'importar',  label: 'Importar',  Icon: Upload,        desc: 'Backup do sistema antigo' },
   ]
 
   const CONTEUDO = {
     turmas:    <SecaoTurmas    igrejaId={igrejaId} />,
     pontuacao: <SecaoPontuacao igrejaId={igrejaId} />,
     usuarios:  <SecaoUsuarios  igrejaId={igrejaId} />,
+    importar:  <SecaoImportar  igrejaId={igrejaId} />,
   }
 
   return (
