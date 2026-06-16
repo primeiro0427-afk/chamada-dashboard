@@ -176,6 +176,20 @@ export const getChamadaByData = async (turmaId, data) => {
   return chamada ? mapChamada(chamada) : null
 }
 
+export const deletarChamada = async (turmaId, data) => {
+  const { data: chamada, error } = await supabase
+    .from('chamadas')
+    .select('id')
+    .eq('turma_id', turmaId)
+    .eq('data', data)
+    .maybeSingle()
+  if (error) throw error
+  if (!chamada) return
+  // CASCADE apaga registros_chamada automaticamente
+  const { error: errDel } = await supabase.from('chamadas').delete().eq('id', chamada.id)
+  if (errDel) throw errDel
+}
+
 export const saveChamada = async (chamadaData, igrejaId) => {
   const { data: chamada, error: errChamada } = await supabase
     .from('chamadas')

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import {
   getTurmas, getAlunos, getChamadaByData, saveChamada,
-  getCategorias, calcularPontosRegistro,
+  getCategorias, calcularPontosRegistro, deletarChamada,
 } from '../utils/storage'
 import { formatDateFull } from '../utils/dates'
 import { useAuth } from '../contexts/AuthContext'
@@ -113,9 +113,10 @@ export default function Chamada({ params, navigate }) {
   const [extras, setExtras]         = useState({})
   const [configCats, setConfigCats] = useState([])
   const [busca, setBusca]           = useState('')
-  const [saved, setSaved]           = useState(false)
-  const [saving, setSaving]         = useState(false)
-  const [recentSave, setRecentSave] = useState(false)
+  const [saved, setSaved]               = useState(false)
+  const [saving, setSaving]             = useState(false)
+  const [recentSave, setRecentSave]     = useState(false)
+  const [confirmExcluir, setConfirmExcluir] = useState(false)
   const [modo, setModo]             = useState(null)
   const [abaView, setAbaView]       = useState('presenca')
   const [etapa, setEtapa]           = useState(1)
@@ -234,6 +235,13 @@ export default function Chamada({ params, navigate }) {
       presente:   registros[a.id] === true,
       categorias: registros[a.id] === true ? (extras[a.id] || {}) : {},
     }))
+
+  const handleExcluirChamada = async () => {
+    setSaving(true)
+    await deletarChamada(turmaId, data)
+    setSaving(false)
+    navigate('home')
+  }
 
   const handleSalvarPresenca = async () => {
     setSaving(true)
@@ -420,6 +428,32 @@ export default function Chamada({ params, navigate }) {
         >
           Voltar para o início
         </button>
+      )}
+
+      <button
+        onClick={() => setConfirmExcluir(true)}
+        className="w-full py-2 rounded-xl text-xs text-red-400 hover:text-red-600 hover:bg-red-50 transition no-print border border-transparent hover:border-red-200"
+      >
+        Excluir esta chamada
+      </button>
+
+      {confirmExcluir && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h4 className="text-lg font-bold text-gray-800 mb-2">Excluir chamada?</h4>
+            <p className="text-gray-500 text-sm mb-5">
+              Todos os registros de presença e pontuação desta data serão apagados permanentemente. Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConfirmExcluir(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">
+                Cancelar
+              </button>
+              <button onClick={handleExcluirChamada} disabled={saving} className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition disabled:opacity-50">
+                {saving ? 'Excluindo...' : 'Sim, excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
