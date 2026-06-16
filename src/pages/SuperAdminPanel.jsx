@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Building2, Users, Plus, Trash2, CheckCircle, AlertTriangle, LogOut, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { createClient } from '@supabase/supabase-js'
 
 const ROLE_LABEL = { admin: 'Admin', secretaria: 'Secretária' }
 const ROLE_COLOR = { admin: 'bg-indigo-100 text-indigo-700', secretaria: 'bg-gray-100 text-gray-600' }
@@ -46,30 +45,20 @@ export default function SuperAdminPanel() {
     setCriando(true)
 
     try {
-      const igId = form.role === 'admin' && form.igrejaNova.trim()
-        ? null // nova igreja será criada via onboarding
-        : igrejaSel
+      const igId = form.role === 'admin' ? null : igrejaSel
 
-      // Criar cliente temporário sem persistir sessão
-      const tempClient = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY,
-        { auth: { persistSession: false, autoRefreshToken: false } }
-      )
-
-      const { error } = await tempClient.auth.signUp({
-        email: form.email,
-        password: form.senha,
-        options: {
-          data: {
-            role:      form.role,
-            igreja_id: igId,
-            nome:      form.nome,
-          },
+      const { data, error } = await supabase.functions.invoke('criar-usuario', {
+        body: {
+          email:     form.email,
+          password:  form.senha,
+          nome:      form.nome,
+          role:      form.role,
+          igreja_id: igId,
         },
       })
 
       if (error) throw error
+      if (data?.error) throw new Error(data.error)
 
       setMsgForm({ tipo: 'ok', texto: `Usuário ${form.email} criado com sucesso!` })
       setForm({ email: '', senha: '', nome: '', role: 'secretaria', igrejaNova: '' })
