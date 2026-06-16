@@ -373,14 +373,12 @@ export default function Configuracoes() {
   const SECOES = [
     { id: 'turmas',    label: 'Turmas',    Icon: GraduationCap, desc: 'Nomes, cores e quantidade' },
     { id: 'pontuacao', label: 'Pontuação', Icon: Star,          desc: 'Critérios e pontos da EBD' },
-    { id: 'usuarios',  label: 'Usuários',  Icon: Users,         desc: 'Secretárias e acessos' },
     { id: 'importar',  label: 'Importar',  Icon: Upload,        desc: 'Backup do sistema antigo' },
   ]
 
   const CONTEUDO = {
     turmas:    <SecaoTurmas    igrejaId={igrejaId} />,
     pontuacao: <SecaoPontuacao igrejaId={igrejaId} />,
-    usuarios:  <SecaoUsuarios  igrejaId={igrejaId} />,
     importar:  <SecaoImportar  igrejaId={igrejaId} />,
   }
 
