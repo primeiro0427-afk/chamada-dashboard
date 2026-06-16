@@ -24,8 +24,8 @@ export default function Login() {
       <div className="login-card-wrapper flex flex-1 items-center justify-center" style={{ paddingTop: '8vh' }}>
       <div className="w-full max-w-sm mx-4">
         <div
-          className="rounded-2xl p-8 shadow-2xl border border-white/10"
-          style={{ background: 'rgba(8,18,55,0.72)', backdropFilter: 'blur(14px)' }}
+          className="login-card rounded-2xl p-8 shadow-2xl border border-white/10"
+          style={{ background: 'rgba(8,18,55,0.72)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}
         >
           <div className="text-center mb-6">
             <h2 className="text-white font-bold text-xl">Acesse sua conta</h2>

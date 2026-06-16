@@ -19,6 +19,12 @@
   }
 
   .login-card-wrapper {
-    padding-top: 42vh !important;
+    padding-top: 0 !important;
+  }
+
+  .login-card {
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    background: rgba(8, 18, 55, 0.60) !important;
   }
 }
