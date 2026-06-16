@@ -11,6 +11,7 @@ import Historico from './pages/Historico'
 import Ranking from './pages/Ranking'
 import Relatorios from './pages/Relatorios'
 import Configuracoes from './pages/Configuracoes'
+import SuperAdminPanel from './pages/SuperAdminPanel'
 
 function AppContent() {
   const { session, profile, loading } = useAuth()
@@ -32,6 +33,8 @@ function AppContent() {
   }
 
   if (!session) return <Login />
+
+  if (profile?.role === 'superadmin') return <SuperAdminPanel />
 
   if (!profile?.igreja_id) return <Onboarding />
 
@@ -67,9 +70,9 @@ function AppContent() {
             {page.name === 'home'          && <Home          navigate={navigate} />}
             {page.name === 'chamada'       && <Chamada       params={page.params} navigate={navigate} />}
             {page.name === 'alunos'        && <Alunos        params={page.params} navigate={navigate} />}
-            {isAdmin && page.name === 'historico'   && <Historico    params={page.params} navigate={navigate} />}
-            {isAdmin && page.name === 'ranking'     && <Ranking      navigate={navigate} />}
-            {isAdmin && page.name === 'relatorios'  && <Relatorios   navigate={navigate} />}
+            {page.name === 'historico'     && <Historico     params={page.params} navigate={navigate} />}
+            {page.name === 'ranking'       && <Ranking       navigate={navigate} />}
+            {page.name === 'relatorios'    && <Relatorios    navigate={navigate} />}
             {isAdmin && page.name === 'configuracoes' && <Configuracoes navigate={navigate} />}
           </div>
         </main>

@@ -1,18 +1,16 @@
 import { Home, Users, BarChart2, FileText, Settings, Menu, ClipboardList, Trophy, LogOut } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
-const NAV_ADMIN = [
-  { id: 'home',         label: 'Início',       Icon: Home },
-  { id: 'alunos',       label: 'Alunos',       Icon: Users },
-  { id: 'historico',    label: 'Frequência',   Icon: BarChart2 },
-  { id: 'ranking',      label: 'Ranking',      Icon: Trophy },
-  { id: 'relatorios',   label: 'Relatórios',   Icon: FileText },
+const NAV_COMPLETO = [
+  { id: 'home',       label: 'Início',     Icon: Home },
+  { id: 'alunos',     label: 'Alunos',     Icon: Users },
+  { id: 'historico',  label: 'Frequência', Icon: BarChart2 },
+  { id: 'ranking',    label: 'Ranking',    Icon: Trophy },
+  { id: 'relatorios', label: 'Relatórios', Icon: FileText },
 ]
 
-const NAV_SECRETARIA = [
-  { id: 'home',   label: 'Início', Icon: Home },
-  { id: 'alunos', label: 'Alunos', Icon: Users },
-]
+const NAV_ADMIN    = NAV_COMPLETO
+const NAV_SECRETARIA = NAV_COMPLETO
 
 const BOTTOM_ITEMS = [
   { id: 'configuracoes', label: 'Configurações', Icon: Settings, adminOnly: true },

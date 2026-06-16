@@ -3,6 +3,7 @@ import { GraduationCap, ChevronUp, ChevronDown, Trash2, AlertTriangle, CheckCirc
 import { getTurmas, saveTurmas, getChamadas, getCategorias, saveCategorias, DEFAULT_CATEGORIAS, importarBackup } from '../utils/storage'
 import { getCor, CORES_LISTA } from '../utils/colors'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../utils/supabase'
 
 // ─── Seção: Turmas ────────────────────────────────────────────────────────────
 
@@ -235,7 +236,12 @@ function SecaoPontuacao({ igrejaId }) {
 // ─── Seção: Usuários ──────────────────────────────────────────────────────────
 
 function SecaoUsuarios({ igrejaId }) {
-  const [copiado, setCopiado] = useState(false)
+  const [usuarios, setUsuarios] = useState([])
+  const [copiado, setCopiado]   = useState(false)
+
+  useEffect(() => {
+    supabase.from('profiles').select('*').eq('igreja_id', igrejaId).then(({ data }) => setUsuarios(data || []))
+  }, [igrejaId])
 
   const copiar = () => {
     navigator.clipboard.writeText(igrejaId)
@@ -243,43 +249,39 @@ function SecaoUsuarios({ igrejaId }) {
     setTimeout(() => setCopiado(false), 2000)
   }
 
+  const ROLE_LABEL = { admin: 'Admin', secretaria: 'Secretária' }
+  const ROLE_COLOR = { admin: 'bg-indigo-100 text-indigo-700', secretaria: 'bg-gray-100 text-gray-600' }
+
   return (
     <div className="space-y-5">
       <div>
         <h3 className="text-lg font-bold text-gray-800">Usuários</h3>
-        <p className="text-sm text-gray-500">Gerencie quem tem acesso ao sistema da sua igreja.</p>
+        <p className="text-sm text-gray-500">Usuários com acesso ao sistema da sua igreja.</p>
       </div>
 
-      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
-        <p className="text-sm font-semibold text-indigo-800">ID da sua igreja</p>
-        <div className="flex items-center gap-2">
-          <code className="flex-1 bg-white border border-indigo-200 rounded-lg px-3 py-2 text-xs text-gray-700 break-all">{igrejaId}</code>
-          <button onClick={copiar} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition flex-shrink-0" title="Copiar">
+      <div className="space-y-2">
+        {usuarios.map(u => (
+          <div key={u.id} className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm text-gray-800">{u.nome || '—'}</div>
+            </div>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLOR[u.role] || 'bg-gray-100 text-gray-600'}`}>
+              {ROLE_LABEL[u.role] || u.role}
+            </span>
+          </div>
+        ))}
+        {usuarios.length === 0 && <p className="text-sm text-gray-400">Nenhum usuário encontrado.</p>}
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+        <p className="font-semibold mb-1">Para adicionar ou remover usuários:</p>
+        <p className="text-amber-700">Entre em contato com o administrador do sistema informando o ID da sua igreja:</p>
+        <div className="flex items-center gap-2 mt-2">
+          <code className="flex-1 bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs text-gray-700 break-all">{igrejaId}</code>
+          <button onClick={copiar} className="p-2 text-amber-600 hover:bg-amber-100 rounded-lg transition flex-shrink-0" title="Copiar">
             {copiado ? <CheckCircle size={18} className="text-green-600" /> : <Copy size={18} />}
           </button>
         </div>
-        <p className="text-xs text-indigo-600">Use este ID ao criar contas de secretária no painel do Supabase.</p>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-        <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-          <Users size={16} className="text-indigo-600" /> Como criar uma conta de Secretária
-        </p>
-        <ol className="text-sm text-gray-600 space-y-2 list-decimal list-inside">
-          <li>Acesse o painel do Supabase → Authentication → Users</li>
-          <li>Clique em <strong>Add User</strong> e informe o e-mail e senha</li>
-          <li>Em <strong>User Metadata</strong>, insira:
-            <pre className="mt-1 bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs overflow-x-auto">
-{`{
-  "role": "secretaria",
-  "igreja_id": "${igrejaId}",
-  "nome": "Nome da Secretária"
-}`}
-            </pre>
-          </li>
-          <li>Clique em <strong>Create User</strong></li>
-        </ol>
-        <p className="text-xs text-gray-400">A secretária poderá fazer chamadas e matricular alunos.</p>
       </div>
     </div>
   )
