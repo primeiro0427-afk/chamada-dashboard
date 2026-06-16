@@ -10,7 +10,8 @@
 
 @media (max-width: 768px) {
   .login-card-wrapper {
-    padding-top: 0 !important;
+    padding-top: 8vh !important;
+    padding-bottom: 0 !important;
   }
 
   .login-card {
