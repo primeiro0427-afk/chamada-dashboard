@@ -25,7 +25,7 @@ export default function Login() {
         <source media="(max-width: 768px)" srcSet="/bg-login-mobile.png" />
         <img src="/bg-login.png" alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: 'contain', objectPosition: 'center', filter: 'brightness(1.25)' }} />
       </picture>
-      <div className="login-card-wrapper flex flex-1 items-center justify-center relative z-10" style={{ paddingBottom: '5vh' }}>
+      <div className="login-card-wrapper flex flex-1 items-center justify-center relative z-10" style={{ paddingBottom: '7.5vh' }}>
       <div className="w-full max-w-sm mx-4">
         <div
           className="login-card rounded-2xl p-8 shadow-2xl border border-white/10"
