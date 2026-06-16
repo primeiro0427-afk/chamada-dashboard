@@ -3,11 +3,11 @@ import { Lock, Mail, LogIn, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
-  const { signIn }            = useAuth()
-  const [email, setEmail]     = useState('')
-  const [senha, setSenha]     = useState('')
-  const [loading, setLoading] = useState(false)
-  const [erro, setErro]       = useState('')
+  const { signIn }                = useAuth()
+  const [email, setEmail]         = useState('')
+  const [senha, setSenha]         = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [erro, setErro]           = useState('')
   const [showSenha, setShowSenha] = useState(false)
 
   const handleEntrar = async (e) => {
@@ -21,52 +21,22 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center"
+      className="min-h-screen flex items-center justify-center relative"
       style={{
-        backgroundImage: 'url(https://images.unsplash.com/photo-1548625149-720754516597?w=1920&q=80)',
+        backgroundImage: 'url(/bg-login.png)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
-      {/* Overlay */}
-      <div className="absolute inset-0" style={{ background: 'rgba(5,14,45,0.85)' }} />
+      {/* Overlay sutil para melhorar legibilidade do card */}
+      <div className="absolute inset-0" style={{ background: 'rgba(4,10,35,0.35)' }} />
 
-      {/* Card de login */}
-      <div className="relative z-10 w-full max-w-md mx-4 flex flex-col items-center gap-7">
-
-        {/* Logo + Título */}
-        <div className="text-center space-y-3">
-          <svg width="80" height="80" viewBox="0 0 80 80" fill="none" className="mx-auto">
-            <circle cx="40" cy="42" r="28" fill="none" stroke="#c8a84b" strokeWidth="1.5" opacity="0.5" />
-            <path d="M20 54 Q20 62 28 62 L56 62 Q62 62 62 56 L62 40 Q62 34 56 34 L28 34 Q20 34 20 42Z" fill="none" stroke="#c8a84b" strokeWidth="1.8"/>
-            <line x1="36" y1="34" x2="36" y2="62" stroke="#c8a84b" strokeWidth="1.4"/>
-            <path d="M22 43 Q29 40 36 43" stroke="#c8a84b" strokeWidth="1.1" fill="none"/>
-            <path d="M22 49 Q29 46 36 49" stroke="#c8a84b" strokeWidth="1.1" fill="none"/>
-            <path d="M22 55 Q29 52 36 55" stroke="#c8a84b" strokeWidth="1.1" fill="none"/>
-            <path d="M42 43 Q50 40 60 41" stroke="#c8a84b" strokeWidth="1.1" fill="none"/>
-            <path d="M42 49 Q50 46 60 47" stroke="#c8a84b" strokeWidth="1.1" fill="none"/>
-            <path d="M42 55 Q50 52 60 53" stroke="#c8a84b" strokeWidth="1.1" fill="none"/>
-            <rect x="38" y="14" width="4" height="24" fill="#c8a84b"/>
-            <rect x="30" y="20" width="20" height="4" fill="#c8a84b"/>
-          </svg>
-
-          <div>
-            <h1 className="text-4xl font-bold text-white tracking-wide" style={{ fontFamily: 'Georgia, serif' }}>
-              Escola Bíblica Dominical
-            </h1>
-            <div className="flex items-center justify-center gap-3 mt-2">
-              <div className="h-px w-10 bg-[#c8a84b] opacity-60" />
-              <p className="text-[#c8a84b] text-xs tracking-[0.3em] uppercase font-semibold">
-                Sistema de Chamada
-              </p>
-              <div className="h-px w-10 bg-[#c8a84b] opacity-60" />
-            </div>
-          </div>
-        </div>
-
-        {/* Card */}
-        <div className="w-full rounded-2xl p-8 shadow-2xl border border-white/10"
-          style={{ background: 'rgba(10,20,60,0.7)', backdropFilter: 'blur(12px)' }}>
+      {/* Card de login — centralizado na área vazia da imagem */}
+      <div className="relative z-10 w-full max-w-sm mx-4">
+        <div
+          className="rounded-2xl p-8 shadow-2xl border border-white/10"
+          style={{ background: 'rgba(8,18,55,0.72)', backdropFilter: 'blur(14px)' }}
+        >
           <div className="text-center mb-6">
             <h2 className="text-white font-bold text-xl">Acesse sua conta</h2>
             <p className="text-blue-300/60 text-sm mt-1">Entre para acessar o sistema</p>
@@ -78,7 +48,7 @@ export default function Login() {
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="Usuário" required
-                className="w-full rounded-xl pl-11 pr-4 py-3.5 text-white text-sm placeholder-blue-300/40 border border-white/10 focus:outline-none focus:border-[#c8a84b]/50 transition"
+                className="w-full rounded-xl pl-11 pr-4 py-3.5 text-white text-sm placeholder-blue-300/40 border border-white/10 focus:outline-none focus:border-[#c8a84b]/60 transition"
                 style={{ background: 'rgba(255,255,255,0.07)' }}
               />
             </div>
@@ -88,7 +58,7 @@ export default function Login() {
               <input
                 type={showSenha ? 'text' : 'password'} value={senha} onChange={e => setSenha(e.target.value)}
                 placeholder="Senha" required
-                className="w-full rounded-xl pl-11 pr-11 py-3.5 text-white text-sm placeholder-blue-300/40 border border-white/10 focus:outline-none focus:border-[#c8a84b]/50 transition"
+                className="w-full rounded-xl pl-11 pr-11 py-3.5 text-white text-sm placeholder-blue-300/40 border border-white/10 focus:outline-none focus:border-[#c8a84b]/60 transition"
                 style={{ background: 'rgba(255,255,255,0.07)' }}
               />
               <button type="button" onClick={() => setShowSenha(s => !s)}
@@ -119,14 +89,6 @@ export default function Login() {
             <ShieldCheck size={13} />
             <span>Acesso seguro e restrito</span>
           </div>
-        </div>
-
-        {/* Versículo */}
-        <div className="text-center pb-4">
-          <p className="text-white/60 text-sm italic" style={{ fontFamily: 'Georgia, serif' }}>
-            "Tudo seja feito com decência e ordem."
-          </p>
-          <p className="text-[#c8a84b] text-xs tracking-wider mt-1">1 Coríntios 14:40</p>
         </div>
       </div>
     </div>
