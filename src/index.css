@@ -7,15 +7,30 @@
 }
 
 .login-bg {
+  position: relative;
+}
+
+.login-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   background-image: url('/bg-login.png');
   background-size: cover;
   background-position: center;
+  filter: brightness(1.25);
+  z-index: 0;
+}
+
+.login-card-wrapper {
+  position: relative;
+  z-index: 1;
 }
 
 @media (max-width: 768px) {
-  .login-bg {
+  .login-bg::before {
     background-image: url('/bg-login-mobile.png');
     background-position: top center;
+    filter: brightness(1.4);
   }
 
   .login-card-wrapper {
@@ -23,8 +38,8 @@
   }
 
   .login-card {
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
-    background: rgba(8, 18, 55, 0.60) !important;
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    background: rgba(8, 18, 55, 0.40) !important;
   }
 }

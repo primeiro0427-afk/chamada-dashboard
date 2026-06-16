@@ -21,7 +21,7 @@ export default function Login() {
 
   return (
     <div className="login-bg min-h-screen flex flex-col">
-      <div className="login-card-wrapper flex flex-1 items-center justify-center" style={{ paddingTop: '8vh' }}>
+      <div className="login-card-wrapper flex flex-1 items-center justify-center relative z-10" style={{ paddingTop: '8vh' }}>
       <div className="w-full max-w-sm mx-4">
         <div
           className="login-card rounded-2xl p-8 shadow-2xl border border-white/10"
