@@ -20,7 +20,11 @@ export default function Login() {
   }
 
   return (
-    <div className="login-bg min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: '#020d2b' }}>
+      <picture>
+        <source media="(max-width: 768px)" srcSet="/bg-login-mobile.png" />
+        <img src="/bg-login.png" alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: 'contain', objectPosition: 'center', filter: 'brightness(1.25)' }} />
+      </picture>
       <div className="login-card-wrapper flex flex-1 items-center justify-center relative z-10" style={{ paddingTop: '8vh' }}>
       <div className="w-full max-w-sm mx-4">
         <div

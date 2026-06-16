@@ -6,33 +6,7 @@
   .no-print { display: none !important; }
 }
 
-.login-bg {
-  position: relative;
-}
-
-.login-bg::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: url('/bg-login.png');
-  background-size: cover;
-  background-position: center;
-  filter: brightness(1.25);
-  z-index: 0;
-}
-
-.login-card-wrapper {
-  position: relative;
-  z-index: 1;
-}
-
 @media (max-width: 768px) {
-  .login-bg::before {
-    background-image: url('/bg-login-mobile.png');
-    background-position: top center;
-    filter: brightness(1.4);
-  }
-
   .login-card-wrapper {
     padding-top: 0 !important;
   }
