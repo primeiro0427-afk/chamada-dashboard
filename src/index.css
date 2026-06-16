@@ -5,3 +5,20 @@
 @media print {
   .no-print { display: none !important; }
 }
+
+.login-bg {
+  background-image: url('/bg-login.png');
+  background-size: cover;
+  background-position: center;
+}
+
+@media (max-width: 768px) {
+  .login-bg {
+    background-image: url('/bg-login-mobile.png');
+    background-position: top center;
+  }
+
+  .login-card-wrapper {
+    padding-top: 42vh !important;
+  }
+}
