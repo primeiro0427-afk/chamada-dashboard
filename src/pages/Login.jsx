@@ -20,7 +20,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: '#020d2b' }}>
+    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: '#000000' }}>
       <picture>
         <source media="(max-width: 768px)" srcSet="/bg-login-mobile.png" />
         <img src="/bg-login.png" alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: 'contain', objectPosition: 'center', filter: 'brightness(1.25)' }} />
