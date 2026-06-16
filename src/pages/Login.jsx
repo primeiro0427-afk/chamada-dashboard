@@ -21,18 +21,16 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center relative"
+      className="min-h-screen flex flex-col"
       style={{
         backgroundImage: 'url(/bg-login.png)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
-      {/* Overlay sutil para melhorar legibilidade do card */}
-      <div className="absolute inset-0" style={{ background: 'rgba(4,10,35,0.35)' }} />
-
-      {/* Card de login — centralizado na área vazia da imagem */}
-      <div className="relative z-10 w-full max-w-sm mx-4">
+      {/* Card de login — posicionado na área vazia abaixo do título */}
+      <div className="flex flex-1 items-center justify-center" style={{ paddingTop: '44vh' }}>
+      <div className="w-full max-w-sm mx-4">
         <div
           className="rounded-2xl p-8 shadow-2xl border border-white/10"
           style={{ background: 'rgba(8,18,55,0.72)', backdropFilter: 'blur(14px)' }}
@@ -90,6 +88,7 @@ export default function Login() {
             <span>Acesso seguro e restrito</span>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
