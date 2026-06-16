@@ -47,24 +47,18 @@ export default function SuperAdminPanel() {
     try {
       const igId = form.role === 'admin' ? null : igrejaSel
 
-      // Criar usuário via signUp com cliente temporário
-      const { createClient } = await import('@supabase/supabase-js')
-      const tempClient = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY,
-        { auth: { persistSession: false, autoRefreshToken: false } }
-      )
-
-      const { error: errSignUp } = await tempClient.auth.signUp({
-        email: form.email,
-        password: form.senha,
-        options: { data: { nome: form.nome, role: form.role, igreja_id: igId } },
+      const { data, error } = await supabase.functions.invoke('criar-usuario', {
+        body: {
+          email:     form.email,
+          password:  form.senha,
+          nome:      form.nome,
+          role:      form.role,
+          igreja_id: igId,
+        },
       })
-      if (errSignUp) throw errSignUp
 
-      // Confirmar email imediatamente via RPC
-      const { error: errConfirm } = await supabase.rpc('admin_confirmar_email', { p_email: form.email })
-      if (errConfirm) throw errConfirm
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
 
       setMsgForm({ tipo: 'ok', texto: `Usuário ${form.email} criado com sucesso!` })
       setForm({ email: '', senha: '', nome: '', role: 'secretaria', igrejaNova: '' })

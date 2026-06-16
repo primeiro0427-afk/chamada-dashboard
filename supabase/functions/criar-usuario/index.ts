@@ -11,14 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verificar se quem chamou é superadmin
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Não autorizado.' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 401,
-      })
-    }
+    const { email, password, nome, role, igreja_id } = await req.json()
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -26,47 +19,21 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Verificar papel do usuário chamador
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user: caller } } = await supabaseAdmin.auth.getUser(token)
-    if (!caller) {
-      return new Response(JSON.stringify({ error: 'Token inválido.' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 401,
-      })
-    }
-
-    const { data: callerProfile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', caller.id)
-      .single()
-
-    if (callerProfile?.role !== 'superadmin') {
-      return new Response(JSON.stringify({ error: 'Apenas superadmin pode criar usuários.' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 403,
-      })
-    }
-
-    // Criar o usuário
-    const { email, password, nome, role, igreja_id } = await req.json()
-
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { nome, role, igreja_id: igreja_id || null },
+      user_metadata: { nome, role, igreja_id: igreja_id ?? null },
     })
 
     if (error) throw error
 
-    return new Response(JSON.stringify({ user: data.user }), {
+    return new Response(JSON.stringify({ id: data.user.id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     })
