@@ -31,6 +31,8 @@ export const getLastSundayOrToday = () => {
   return formatDate(sunday)
 }
 
+export const isSunday = (dateStr) => new Date(dateStr + 'T12:00:00').getDay() === 0
+
 export const getPastSundays = (limit = 52) => {
   const sundays = []
   const today = new Date()

@@ -223,7 +223,7 @@ export const getDatasComChamada = async () => {
     .select('data')
     .order('data', { ascending: false })
   if (error) throw error
-  return [...new Set(data.map(c => c.data))]
+  return [...new Set(data.map(c => c.data))].filter(d => new Date(d + 'T12:00:00').getDay() === 0)
 }
 
 export const getRankingPorData = async (data) => {

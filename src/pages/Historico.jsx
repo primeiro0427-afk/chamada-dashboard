@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Download, Printer, CheckCircle, XCircle, AlertTriangle, BarChart2, Calendar, Pencil, ClipboardList } from 'lucide-react'
 import { getTurmas, getAlunos, getChamadas } from '../utils/storage'
-import { formatDateBR, formatDateFull } from '../utils/dates'
+import { formatDateBR, formatDateFull, isSunday, getLastSundayOrToday } from '../utils/dates'
 import { getCor } from '../utils/colors'
 
 const FREQ_MIN = 50
@@ -74,7 +74,7 @@ export default function Historico({ params, navigate }) {
       ])
       setTurma(turmas.find(t => t.id === turmaId))
       setAlunos(a.sort((a, b) => a.nome.localeCompare(b.nome)))
-      const sorted = c.sort((a, b) => b.data.localeCompare(a.data))
+      const sorted = c.filter(ch => isSunday(ch.data)).sort((a, b) => b.data.localeCompare(a.data))
       setChamadas(sorted)
       if (sorted.length > 0) setSelectedData(sorted[0].data)
       setLoading(false)
@@ -148,7 +148,7 @@ export default function Historico({ params, navigate }) {
           </div>
           <p className="text-gray-400">Nenhuma chamada registrada ainda.</p>
           <button
-            onClick={() => navigate('chamada', { turmaId, data: new Date().toISOString().split('T')[0] })}
+            onClick={() => navigate('chamada', { turmaId, data: getLastSundayOrToday() })}
             className="mt-4 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition"
           >
             Fazer primeira chamada
