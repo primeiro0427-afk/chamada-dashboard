@@ -120,11 +120,27 @@ export default function Chamada({ params, navigate }) {
   const [confirmExcluir, setConfirmExcluir] = useState(false)
   const [modo, setModo]             = useState(null)
   const [erroCarregar, setErroCarregar] = useState('')
+  const [demorando, setDemorando]       = useState(false)
   const [abaView, setAbaView]       = useState('presenca')
   const [etapa, setEtapa]           = useState(1)
 
   useEffect(() => {
-    if (!turmaId || !igrejaId) return
+    // Faltando turma ou data não há o que buscar. Antes o efeito saía calado e
+    // a tela ficava em "Carregando..." para sempre, sem cair em catch nenhum.
+    if (!turmaId || !data) {
+      setErroCarregar('A chamada foi aberta sem turma ou sem data. Volte ao início e tente de novo.')
+      return
+    }
+    // Perfil ainda carregando: o App só renderiza esta tela com igreja definida.
+    if (!igrejaId) return
+
+    setErroCarregar('')
+
+    // Rede travada não rejeita nem resolve — sem isto a tela giraria eternamente.
+    const alarme = setTimeout(() => {
+      setDemorando(true)
+    }, 15000)
+
     const load = async () => {
       const [turmas, lista, cats, existente] = await Promise.all([
         getTurmas(),
@@ -171,10 +187,17 @@ export default function Chamada({ params, navigate }) {
     }
     // Sem o catch, qualquer falha aqui deixava a tela em "Carregando..." para
     // sempre, porque o setModo nunca chegava a rodar.
-    load().catch(err => {
-      console.error('Erro ao carregar a chamada:', err)
-      setErroCarregar(err.message || 'Não foi possível carregar a chamada.')
-    })
+    load()
+      .catch(err => {
+        console.error('Erro ao carregar a chamada:', err)
+        setErroCarregar(err.message || 'Não foi possível carregar a chamada.')
+      })
+      .finally(() => {
+        clearTimeout(alarme)
+        setDemorando(false)
+      })
+
+    return () => clearTimeout(alarme)
   }, [turmaId, data, igrejaId])
 
   // ── Computed ────────────────────────────────────────────────────────────────
@@ -306,7 +329,26 @@ export default function Chamada({ params, navigate }) {
   )
 
   if (modo === null || !turma) return (
-    <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
+    <div className="text-center py-12 space-y-4">
+      <p className="text-gray-400 text-sm">Carregando...</p>
+
+      {/* Passou do tempo razoável: dá uma saída em vez de deixar a pessoa presa */}
+      {demorando && (
+        <div className="max-w-sm mx-auto space-y-3">
+          <p className="text-sm text-gray-600">
+            Está demorando mais que o normal. Pode ser a sua conexão.
+          </p>
+          <div className="flex gap-2 justify-center">
+            <button onClick={() => window.location.reload()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+              Tentar de novo
+            </button>
+            <button onClick={() => navigate('home')} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+              Voltar ao início
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 
   // ── Reusable bits ───────────────────────────────────────────────────────────
