@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Users, BarChart2, CheckCircle, XCircle, RefreshCw,
-  Check, X, Save, Search, ChevronRight, ChevronLeft, Star, Pencil, AlertTriangle,
+  Check, X, Save, Search, ChevronRight, ChevronLeft, Star, Pencil, AlertTriangle, Trash2,
 } from 'lucide-react'
 import {
   getTurmas, getAlunos, getChamadaByData, saveChamada,
@@ -456,25 +456,40 @@ export default function Chamada({ params, navigate }) {
         </div>
       } />
 
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit no-print">
-        {['presenca', 'pontuacao'].map(aba => (
-          <button key={aba} onClick={() => setAbaView(aba)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${abaView === aba ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            {aba === 'presenca' ? 'Presença' : 'Pontuação'}
-          </button>
-        ))}
+      {/* Editar e excluir ficam aqui em cima de propósito: embaixo da lista
+          obrigava a rolar a turma inteira toda vez que se queria corrigir algo. */}
+      <div className="flex items-center gap-2 flex-wrap no-print">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+          {['presenca', 'pontuacao'].map(aba => (
+            <button key={aba} onClick={() => setAbaView(aba)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${abaView === aba ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {aba === 'presenca' ? 'Presença' : 'Pontuação'}
+            </button>
+          ))}
+        </div>
+
+        {/* Edita o que está aberto, para não ter dois botões parecidos na tela */}
+        <button
+          onClick={() => setModo(abaView === 'presenca' ? 'edit-presenca' : 'edit-pontuacao')}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-indigo-700 border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition"
+        >
+          <Pencil size={15} /> Editar {abaView === 'presenca' ? 'presença' : 'pontuação'}
+        </button>
+
+        <button
+          onClick={() => setConfirmExcluir(true)}
+          title="Excluir esta chamada"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-red-500 border border-red-200 bg-white hover:bg-red-50 hover:border-red-300 transition sm:ml-auto"
+        >
+          <Trash2 size={15} /> Excluir
+        </button>
       </div>
 
       {abaView === 'presenca' && (
         <>
           <ContadoresPresenca />
           <PresencaGrid readonly />
-          <button onClick={() => setModo('edit-presenca')}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-indigo-700 border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition no-print"
-          >
-            <Pencil size={16} /> Editar Presença
-          </button>
         </>
       )}
 
@@ -485,11 +500,6 @@ export default function Chamada({ params, navigate }) {
             <span className="text-2xl font-black text-indigo-700">{totalPontos} pts</span>
           </div>
           <PontuacaoLista {...pontuacaoProps} readonly />
-          <button onClick={() => setModo('edit-pontuacao')}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-indigo-700 border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition no-print"
-          >
-            <Pencil size={16} /> Editar Pontuação
-          </button>
         </>
       )}
       {recentSave && (
@@ -499,13 +509,6 @@ export default function Chamada({ params, navigate }) {
           Voltar para o início
         </button>
       )}
-
-      <button
-        onClick={() => setConfirmExcluir(true)}
-        className="w-full py-2 rounded-xl text-xs text-red-400 hover:text-red-600 hover:bg-red-50 transition no-print border border-transparent hover:border-red-200"
-      >
-        Excluir esta chamada
-      </button>
 
       {confirmExcluir && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
