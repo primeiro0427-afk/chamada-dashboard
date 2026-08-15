@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Download, Printer, CheckCircle, XCircle, AlertTriangle, BarChart2, Calendar, Pencil, ClipboardList } from 'lucide-react'
 import { getTurmas, getAlunos, getChamadas } from '../utils/storage'
-import { formatDateBR, formatDateFull, isSunday, getLastSundayOrToday } from '../utils/dates'
+import { formatDateBR, formatDateFull, formatDate, isSunday, getLastSundayOrToday } from '../utils/dates'
 import { getCor } from '../utils/colors'
 import { baixarCSV } from '../utils/csv'
 
@@ -110,7 +110,18 @@ export default function Historico({ params, navigate }) {
     const linhas = frequencias.map(f => [
       f.aluno.nome, f.aluno.matricula || '', f.presencas, f.total, f.pct !== null ? f.pct : 'N/A',
     ])
-    baixarCSV(`frequencia-${turma.nome}-${new Date().toISOString().split('T')[0]}.csv`, header, linhas)
+    // chamadas vem ordenada da mais recente para a mais antiga
+    const meta = [
+      ['Relatório de Frequência'],
+      ['Turma', turma.nome],
+      ['Gerado em', formatDateBR(formatDate(new Date()))],
+      ...(chamadas.length > 0
+        ? [['Período', `${formatDateBR(chamadas[chamadas.length - 1].data)} a ${formatDateBR(chamadas[0].data)}`],
+           ['Aulas registradas', chamadas.length]]
+        : []),
+      ['Ordem', 'Da menor para a maior frequência'],
+    ]
+    baixarCSV(`frequencia-${turma.nome}-${formatDate(new Date())}.csv`, header, linhas, meta)
   }
 
   const totalAulas       = chamadas.length

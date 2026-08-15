@@ -11,10 +11,24 @@ const celula = (valor) => {
   return /["\n\r;]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto
 }
 
-export const baixarCSV = (nomeArquivo, header, linhas) => {
-  const csv = [header, ...linhas]
-    .map(linha => linha.map(celula).join(SEPARADOR))
-    .join('\r\n')
+/**
+ * `meta` são as linhas de referência do relatório (o que é, de quando é),
+ * impressas antes da tabela e separadas dela por uma linha em branco — sem
+ * isso o arquivo não diz a que período se refere.
+ */
+export const baixarCSV = (nomeArquivo, header, linhas, meta = []) => {
+  const blocos = []
+
+  if (meta.length > 0) {
+    blocos.push(...meta.map(linha => linha.map(celula).join(SEPARADOR)), '')
+  }
+
+  blocos.push(
+    header.map(celula).join(SEPARADOR),
+    ...linhas.map(linha => linha.map(celula).join(SEPARADOR)),
+  )
+
+  const csv = blocos.join('\r\n')
 
   // O BOM faz o Excel reconhecer o arquivo como UTF-8 e não quebrar os acentos.
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })

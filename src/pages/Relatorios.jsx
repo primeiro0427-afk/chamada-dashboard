@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Download, Printer, ChevronRight, Check, X, Trophy } from 'lucide-react'
 import { getTurmas, getAlunos, getChamadas, getCategorias, getDatasComChamada, calcularPontosRegistro } from '../utils/storage'
 import { getCor } from '../utils/colors'
-import { formatDateFull, formatDateBR } from '../utils/dates'
+import { formatDateFull, formatDateBR, formatDate } from '../utils/dates'
 import { baixarCSV } from '../utils/csv'
 import MiniCalendario from '../components/MiniCalendario'
 
@@ -77,6 +77,43 @@ function TabelaPorData({ turmas, alunosMap, chamadasMap, categorias, dataSel }) 
   )
 }
 
+/**
+ * Quantas vezes cada aluno pontuou em cada categoria, somando todas as aulas.
+ * Fica fora do componente porque a exportação em CSV precisa da mesma conta.
+ */
+function calcularAcumulado(alunos, chamadas, categorias) {
+  const todasCats       = categorias.filter(c => c.ativo)
+  const catsSemPresenca = todasCats.filter(c => c.id !== 'presenca')
+
+  return alunos.map(aluno => {
+    const contagem = {}
+    todasCats.forEach(c => { contagem[c.id] = 0 })
+    let totalPts = 0
+
+    chamadas.forEach(chamada => {
+      const reg = chamada.registros.find(r => r.alunoId === aluno.id)
+      if (!reg) return
+      if (reg.presente) contagem['presenca']++
+      catsSemPresenca.forEach(c => {
+        if (c.tipo === 'boolean' && reg.categorias?.[c.id]) contagem[c.id]++
+        if ((c.tipo === 'numeric' || c.tipo === 'currency') && parseFloat(reg.categorias?.[c.id]) > 0) contagem[c.id]++
+      })
+      totalPts += calcularPontosRegistro(reg, categorias)
+    })
+
+    return { aluno, contagem, totalPts }
+  })
+}
+
+/** Valor de uma categoria num registro, em texto puro (para o CSV). */
+function valorCategoria(reg, cat) {
+  if (cat.tipo === 'currency' || cat.tipo === 'numeric') {
+    const val = parseFloat(reg.categorias?.[cat.id])
+    return val > 0 ? val : 0
+  }
+  return reg.categorias?.[cat.id] ? 'Sim' : 'Não'
+}
+
 function TabelaGeral({ turmas, alunosMap, chamadasMap, categorias }) {
   const todasCats       = categorias.filter(c => c.ativo)
   const catsSemPresenca = todasCats.filter(c => c.id !== 'presenca')
@@ -86,22 +123,7 @@ function TabelaGeral({ turmas, alunosMap, chamadasMap, categorias }) {
         const cor     = getCor(turma.cor)
         const alunos  = alunosMap[turma.id] || []
         const chamadas = chamadasMap[turma.id] || []
-        const acumulado = alunos.map(aluno => {
-          const contagem = {}
-          todasCats.forEach(c => { contagem[c.id] = 0 })
-          let totalPts = 0
-          chamadas.forEach(chamada => {
-            const reg = chamada.registros.find(r => r.alunoId === aluno.id)
-            if (!reg) return
-            if (reg.presente) contagem['presenca']++
-            catsSemPresenca.forEach(c => {
-              if (c.tipo === 'boolean' && reg.categorias?.[c.id]) contagem[c.id]++
-              if ((c.tipo === 'numeric' || c.tipo === 'currency') && parseFloat(reg.categorias?.[c.id]) > 0) contagem[c.id]++
-            })
-            totalPts += calcularPontosRegistro(reg, categorias)
-          })
-          return { aluno, contagem, totalPts }
-        })
+        const acumulado = calcularAcumulado(alunos, chamadas, categorias)
         const totalTurma = acumulado.reduce((s, a) => s + a.totalPts, 0)
         return (
           <div key={turma.id} className={`bg-white border-l-4 ${cor.border} rounded-xl overflow-hidden shadow-sm`}>
@@ -329,14 +351,73 @@ export default function Relatorios({ navigate }) {
     irregulares: dados.reduce((s, d) => s + d.irregulares, 0),
   }), [dados])
 
-  const exportarCSVGeral = () => {
+  // datas vem de getDatasComChamada, em ordem decrescente
+  const periodo = datas.length > 0
+    ? [['Período', `${formatDateBR(datas[datas.length - 1])} a ${formatDateBR(datas[0])}`],
+       ['Domingos com chamada', datas.length]]
+    : []
+
+  // formatDate usa a data local; toISOString daria a data de amanhã à noite
+  const hojeArquivo = () => formatDate(new Date())
+
+  const metaBase = (titulo) => [
+    [titulo],
+    ['Gerado em', formatDateBR(hojeArquivo())],
+    ...periodo,
+  ]
+
+  const exportarCSVFrequencia = () => {
     const header = ['Turma', 'Aluno', 'Matrícula', 'Presenças', 'Total de Aulas', 'Frequência (%)']
     const linhas = dados.flatMap(({ turma, frequencias }) =>
       frequencias.map(f => [
         turma.nome, f.aluno.nome, f.aluno.matricula || '', f.presencas, f.totalAulas, f.pct !== null ? f.pct : 'N/A',
       ])
     )
-    baixarCSV(`relatorio-geral-${new Date().toISOString().split('T')[0]}.csv`, header, linhas)
+    baixarCSV(`frequencia-geral-${hojeArquivo()}.csv`, header, linhas, metaBase('Relatório de Frequência'))
+  }
+
+  const exportarCSVPontuacao = () => {
+    const cats = categorias.filter(c => c.ativo && c.id !== 'presenca')
+
+    // "Geral" soma todas as aulas; uma data específica exporta só aquela chamada.
+    if (dataSel === 'geral') {
+      const header = ['Turma', 'Aluno', 'Matrícula', 'Presenças', ...cats.map(c => c.nome), 'Total de Pontos']
+      const linhas = turmas.flatMap(turma =>
+        calcularAcumulado(alunosMap[turma.id] || [], chamadasMap[turma.id] || [], categorias)
+          .map(({ aluno, contagem, totalPts }) => [
+            turma.nome, aluno.nome, aluno.matricula || '',
+            contagem['presenca'], ...cats.map(c => contagem[c.id]), totalPts,
+          ])
+      )
+      baixarCSV(
+        `pontuacao-geral-${hojeArquivo()}.csv`, header, linhas,
+        [...metaBase('Relatório de Pontuação — Acumulado'),
+         ['Observação', 'Os números indicam em quantas aulas o aluno pontuou na categoria']],
+      )
+      return
+    }
+
+    const header = ['Turma', 'Aluno', 'Matrícula', 'Presente', ...cats.map(c => c.nome), 'Pontos']
+    const linhas = turmas.flatMap(turma => {
+      const chamada = (chamadasMap[turma.id] || []).find(c => c.data === dataSel)
+      if (!chamada) return []
+      return (alunosMap[turma.id] || []).flatMap(aluno => {
+        const reg = chamada.registros.find(r => r.alunoId === aluno.id)
+        if (!reg) return []
+        return [[
+          turma.nome, aluno.nome, aluno.matricula || '',
+          reg.presente ? 'Sim' : 'Não',
+          ...cats.map(c => valorCategoria(reg, c)),
+          calcularPontosRegistro(reg, categorias),
+        ]]
+      })
+    })
+    baixarCSV(
+      `pontuacao-${dataSel}.csv`, header, linhas,
+      [['Relatório de Pontuação'],
+       ['Gerado em', formatDateBR(hojeArquivo())],
+       ['Aula de', formatDateBR(dataSel)]],
+    )
   }
 
   return (
@@ -350,9 +431,11 @@ export default function Relatorios({ navigate }) {
           <button onClick={() => navigate('ranking')} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 bg-white rounded-lg hover:bg-gray-50 transition text-gray-600">
             <Trophy size={15} className="text-amber-500" /> Ranking
           </button>
-          {aba === 'frequencia' && (
+          {(aba === 'frequencia' || aba === 'pontuacao') && (
             <>
-              <button onClick={exportarCSVGeral} disabled={totais.aulas === 0}
+              <button
+                onClick={aba === 'frequencia' ? exportarCSVFrequencia : exportarCSVPontuacao}
+                disabled={aba === 'frequencia' ? totais.aulas === 0 : datas.length === 0}
                 className="flex items-center gap-2 px-3 py-2 text-sm bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Download size={15} className="text-white" /> Exportar CSV
