@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { Download, Printer, ChevronRight, Check, X, Trophy } from 'lucide-react'
 import { getTurmas, getAlunos, getChamadas, getCategorias, getDatasComChamada, calcularPontosRegistro } from '../utils/storage'
 import { getCor } from '../utils/colors'
-import { formatDateFull, formatDateBR, formatDate } from '../utils/dates'
+import { formatDateFull, formatDateBR, formatDate, filtrarPorPeriodo, dentroDoPeriodo, descreverPeriodo } from '../utils/dates'
 import { baixarCSV } from '../utils/csv'
 import MiniCalendario from '../components/MiniCalendario'
+import SeletorPeriodo from '../components/SeletorPeriodo'
 
 const FREQ_MIN = 50
 
@@ -173,31 +174,43 @@ function TabelaGeral({ turmas, alunosMap, chamadasMap, categorias }) {
 
 // ─── Aba Geral EBD ────────────────────────────────────────────────────────────
 
-function RelatorioGeralEBD({ navigate, turmas, alunosMap, chamadasMap, categorias, datas }) {
+function RelatorioGeralEBD({ navigate, turmas, alunosMap, chamadasMap, categorias, datas, periodo }) {
+  const [modo, setModo]       = useState('domingo') // 'domingo' | 'periodo'
   const [dataSel, setDataSel] = useState(datas[0] || null)
   const catsFiltradas = categorias.filter(c => c.ativo && c.id !== 'presenca' && c.id !== 'ausencia')
 
+  // Se o período mudou e o domingo escolhido saiu dele, cai no mais recente.
+  useEffect(() => {
+    if (datas.length > 0 && !datas.includes(dataSel)) setDataSel(datas[0])
+  }, [datas, dataSel])
+
+  // Os dois modos são a mesma conta: muda só quais chamadas entram nela.
   const dadosDoDia = useMemo(() => {
-    if (!dataSel || turmas.length === 0) return []
+    if (turmas.length === 0) return []
+    if (modo === 'domingo' && !dataSel) return []
+
     return turmas.map(turma => {
-      const chamada = (chamadasMap[turma.id] || []).find(c => c.data === dataSel)
-      if (!chamada) return null
-      const presentes   = chamada.registros.filter(r => r.presente).length
-      const ausentes    = chamada.registros.filter(r => !r.presente).length
+      const todas    = chamadasMap[turma.id] || []
+      const chamadas = modo === 'periodo' ? todas : todas.filter(c => c.data === dataSel)
+      if (chamadas.length === 0) return null
+
+      const registros   = chamadas.flatMap(c => c.registros)
+      const presentes   = registros.filter(r => r.presente).length
+      const ausentes    = registros.filter(r => !r.presente).length
       const totalAlunos = (alunosMap[turma.id] || []).length
       const totaisCats  = {}
       catsFiltradas.forEach(cat => {
         if (cat.tipo === 'boolean') {
-          totaisCats[cat.id] = chamada.registros.filter(r => r.presente && r.categorias?.[cat.id]).length
+          totaisCats[cat.id] = registros.filter(r => r.presente && r.categorias?.[cat.id]).length
         } else if (cat.tipo === 'numeric') {
-          totaisCats[cat.id] = chamada.registros.reduce((s, r) => s + (r.presente ? (parseInt(r.categorias?.[cat.id]) || 0) : 0), 0)
+          totaisCats[cat.id] = registros.reduce((s, r) => s + (r.presente ? (parseInt(r.categorias?.[cat.id]) || 0) : 0), 0)
         } else if (cat.tipo === 'currency') {
-          totaisCats[cat.id] = chamada.registros.reduce((s, r) => s + (r.presente ? (parseFloat(r.categorias?.[cat.id]) || 0) : 0), 0)
+          totaisCats[cat.id] = registros.reduce((s, r) => s + (r.presente ? (parseFloat(r.categorias?.[cat.id]) || 0) : 0), 0)
         }
       })
-      return { turma, presentes, ausentes, totalAlunos, totaisCats }
+      return { turma, presentes, ausentes, totalAlunos, totaisCats, aulas: chamadas.length }
     }).filter(Boolean)
-  }, [dataSel, turmas, chamadasMap, alunosMap, catsFiltradas])
+  }, [modo, dataSel, turmas, chamadasMap, alunosMap, catsFiltradas])
 
   const totalGeral = useMemo(() => {
     const t = { presentes: 0, ausentes: 0, totalAlunos: 0 }
@@ -228,23 +241,46 @@ function RelatorioGeralEBD({ navigate, turmas, alunosMap, chamadasMap, categoria
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm font-medium text-gray-600">Data:</span>
-        <MiniCalendario value={dataSel} onChange={setDataSel} datasDisponiveis={datas} />
-        {dataSel && <span className="text-sm text-gray-500 capitalize hidden sm:inline">{formatDateFull(dataSel)}</span>}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          {[['domingo', 'Por domingo'], ['periodo', 'Somar o período']].map(([id, label]) => (
+            <button key={id} onClick={() => setModo(id)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${modo === id ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {modo === 'domingo' ? (
+          <>
+            <MiniCalendario value={dataSel} onChange={setDataSel} datasDisponiveis={datas} />
+            {dataSel && <span className="text-sm text-gray-500 capitalize hidden sm:inline">{formatDateFull(dataSel)}</span>}
+          </>
+        ) : (
+          <span className="text-sm text-gray-500">
+            {descreverPeriodo(periodo)} · {datas.length} domingo{datas.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {dadosDoDia.length === 0 ? (
         <div className="text-center py-10 bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-400">Nenhuma turma com chamada nesta data.</p>
+          <p className="text-gray-400">Nenhuma turma com chamada {modo === 'periodo' ? 'nesse período' : 'nesta data'}.</p>
         </div>
       ) : (
         <>
           <div className="bg-indigo-600 rounded-xl p-5 text-white">
             <p className="font-black text-lg mb-1">Total Geral da EBD</p>
-            <p className="text-indigo-200 text-sm mb-4">{dadosDoDia.length} turma{dadosDoDia.length !== 1 ? 's' : ''} com chamada</p>
+            <p className="text-indigo-200 text-sm mb-4">
+              {dadosDoDia.length} turma{dadosDoDia.length !== 1 ? 's' : ''} com chamada
+              {modo === 'periodo' && ` · ${descreverPeriodo(periodo)}`}
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="bg-white/20 rounded-lg p-3">
-                <div className="text-2xl font-black">{totalGeral.presentes}<span className="text-sm font-normal text-indigo-200">/{totalGeral.totalAlunos}</span></div>
+                <div className="text-2xl font-black">
+                  {totalGeral.presentes}
+                  {modo === 'domingo' && <span className="text-sm font-normal text-indigo-200">/{totalGeral.totalAlunos}</span>}
+                </div>
                 <div className="text-indigo-100 text-xs mt-0.5">Presentes</div>
               </div>
               <div className="bg-white/20 rounded-lg p-3">
@@ -261,7 +297,7 @@ function RelatorioGeralEBD({ navigate, turmas, alunosMap, chamadasMap, categoria
           </div>
 
           <div className="space-y-3">
-            {dadosDoDia.map(({ turma, presentes, ausentes, totalAlunos, totaisCats }) => {
+            {dadosDoDia.map(({ turma, presentes, ausentes, totalAlunos, totaisCats, aulas }) => {
               const cor = getCor(turma.cor)
               return (
                 <div key={turma.id} className={`bg-white border-l-4 ${cor.border} rounded-xl overflow-hidden`}>
@@ -270,7 +306,11 @@ function RelatorioGeralEBD({ navigate, turmas, alunosMap, chamadasMap, categoria
                     <div className="flex items-center gap-3 text-sm font-bold">
                       <span className="text-green-600">{presentes} pres.</span>
                       <span className="text-red-500">{ausentes} aus.</span>
-                      <span className="text-gray-400 font-normal">/{totalAlunos}</span>
+                      {/* No período, presentes é a soma de várias aulas: dividir
+                          pela turma atual daria a impressão errada. */}
+                      {modo === 'periodo'
+                        ? <span className="text-gray-400 font-normal">em {aulas} aula{aulas !== 1 ? 's' : ''}</span>
+                        : <span className="text-gray-400 font-normal">/{totalAlunos}</span>}
                     </div>
                   </div>
                   <div className="px-4 py-3 flex flex-wrap gap-x-5 gap-y-1.5">
@@ -295,7 +335,7 @@ function RelatorioGeralEBD({ navigate, turmas, alunosMap, chamadasMap, categoria
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
-export default function Relatorios({ navigate }) {
+export default function Relatorios({ navigate, periodo, setPeriodo }) {
   const [turmas, setTurmas]         = useState([])
   const [alunosMap, setAlunosMap]   = useState({})
   const [chamadasMap, setChamadasMap] = useState({})
@@ -311,7 +351,6 @@ export default function Relatorios({ navigate }) {
       setTurmas(t)
       setCategorias(cats)
       setDatas(d)
-      if (d.length > 0) setDataSel(d[0])
 
       const am = {}, cm = {}
       await Promise.all(t.map(async turma => {
@@ -326,9 +365,31 @@ export default function Relatorios({ navigate }) {
     load()
   }, [])
 
+  // Filtrar aqui, na origem, faz as abas e as exportações herdarem o período
+  // sem que cada uma precise saber que ele existe.
+  const chamadasDoPeriodo = useMemo(() => {
+    const mapa = {}
+    Object.entries(chamadasMap).forEach(([turmaId, chamadas]) => {
+      mapa[turmaId] = filtrarPorPeriodo(chamadas, periodo)
+    })
+    return mapa
+  }, [chamadasMap, periodo])
+
+  const datasDoPeriodo = useMemo(
+    () => datas.filter(d => dentroDoPeriodo(d, periodo.inicio, periodo.fim)),
+    [datas, periodo],
+  )
+
+  const temPeriodo = !!periodo.inicio || !!periodo.fim
+
+  // Se o domingo escolhido ficou fora do período novo, volta para a visão geral.
+  useEffect(() => {
+    if (dataSel !== 'geral' && !datasDoPeriodo.includes(dataSel)) setDataSel('geral')
+  }, [datasDoPeriodo, dataSel])
+
   const dados = useMemo(() => turmas.map(turma => {
     const alunos   = alunosMap[turma.id] || []
-    const chamadas = chamadasMap[turma.id] || []
+    const chamadas = chamadasDoPeriodo[turma.id] || []
     const totalAulas = chamadas.length
     const frequencias = alunos.map(aluno => {
       const presencas = chamadas.filter(c => c.registros.some(r => r.alunoId === aluno.id && r.presente)).length
@@ -343,7 +404,7 @@ export default function Relatorios({ navigate }) {
       ? [...chamadas].sort((a, b) => b.data.localeCompare(a.data))[0].data
       : null
     return { turma, alunos, totalAulas, mediaFreq, irregulares, frequencias, ultimaChamada }
-  }), [turmas, alunosMap, chamadasMap])
+  }), [turmas, alunosMap, chamadasDoPeriodo])
 
   const totais = useMemo(() => ({
     alunos:      dados.reduce((s, d) => s + d.alunos.length, 0),
@@ -351,10 +412,11 @@ export default function Relatorios({ navigate }) {
     irregulares: dados.reduce((s, d) => s + d.irregulares, 0),
   }), [dados])
 
-  // datas vem de getDatasComChamada, em ordem decrescente
-  const periodo = datas.length > 0
-    ? [['Período', `${formatDateBR(datas[datas.length - 1])} a ${formatDateBR(datas[0])}`],
-       ['Domingos com chamada', datas.length]]
+  // datasDoPeriodo vem de getDatasComChamada, em ordem decrescente
+  const metaPeriodo = datasDoPeriodo.length > 0
+    ? [['Período', descreverPeriodo(periodo)],
+       ['Aulas no período', `${formatDateBR(datasDoPeriodo[datasDoPeriodo.length - 1])} a ${formatDateBR(datasDoPeriodo[0])}`],
+       ['Domingos com chamada', datasDoPeriodo.length]]
     : []
 
   // formatDate usa a data local; toISOString daria a data de amanhã à noite
@@ -363,7 +425,7 @@ export default function Relatorios({ navigate }) {
   const metaBase = (titulo) => [
     [titulo],
     ['Gerado em', formatDateBR(hojeArquivo())],
-    ...periodo,
+    ...metaPeriodo,
   ]
 
   const exportarCSVFrequencia = () => {
@@ -383,7 +445,7 @@ export default function Relatorios({ navigate }) {
     if (dataSel === 'geral') {
       const header = ['Turma', 'Aluno', 'Matrícula', 'Presenças', ...cats.map(c => c.nome), 'Total de Pontos']
       const linhas = turmas.flatMap(turma =>
-        calcularAcumulado(alunosMap[turma.id] || [], chamadasMap[turma.id] || [], categorias)
+        calcularAcumulado(alunosMap[turma.id] || [], chamadasDoPeriodo[turma.id] || [], categorias)
           .map(({ aluno, contagem, totalPts }) => [
             turma.nome, aluno.nome, aluno.matricula || '',
             contagem['presenca'], ...cats.map(c => contagem[c.id]), totalPts,
@@ -399,7 +461,7 @@ export default function Relatorios({ navigate }) {
 
     const header = ['Turma', 'Aluno', 'Matrícula', 'Presente', ...cats.map(c => c.nome), 'Pontos']
     const linhas = turmas.flatMap(turma => {
-      const chamada = (chamadasMap[turma.id] || []).find(c => c.data === dataSel)
+      const chamada = (chamadasDoPeriodo[turma.id] || []).find(c => c.data === dataSel)
       if (!chamada) return []
       return (alunosMap[turma.id] || []).flatMap(aluno => {
         const reg = chamada.registros.find(r => r.alunoId === aluno.id)
@@ -425,7 +487,8 @@ export default function Relatorios({ navigate }) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Relatórios</h2>
-          <p className="text-gray-500">Visão consolidada de todas as turmas.</p>
+          {/* O seletor de período é no-print, então a descrição precisa sair aqui */}
+          <p className="text-gray-500">Visão consolidada de todas as turmas · {descreverPeriodo(periodo)}</p>
         </div>
         <div className="flex gap-2 flex-wrap no-print">
           <button onClick={() => navigate('ranking')} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 bg-white rounded-lg hover:bg-gray-50 transition text-gray-600">
@@ -435,7 +498,7 @@ export default function Relatorios({ navigate }) {
             <>
               <button
                 onClick={aba === 'frequencia' ? exportarCSVFrequencia : exportarCSVPontuacao}
-                disabled={aba === 'frequencia' ? totais.aulas === 0 : datas.length === 0}
+                disabled={aba === 'frequencia' ? totais.aulas === 0 : datasDoPeriodo.length === 0}
                 className="flex items-center gap-2 px-3 py-2 text-sm bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Download size={15} className="text-white" /> Exportar CSV
@@ -446,6 +509,10 @@ export default function Relatorios({ navigate }) {
             </>
           )}
         </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 no-print">
+        <SeletorPeriodo periodo={periodo} onChange={setPeriodo} datas={datas} />
       </div>
 
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit no-print">
@@ -546,19 +613,20 @@ export default function Relatorios({ navigate }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={() => setDataSel('geral')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${dataSel === 'geral' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-600 bg-white hover:bg-gray-50'}`}
+                  title="Somar todas as aulas do período selecionado"
                 >
-                  Geral
+                  {temPeriodo ? 'Período todo' : 'Geral'}
                 </button>
-                <MiniCalendario value={dataSel === 'geral' ? null : dataSel} onChange={setDataSel} datasDisponiveis={datas} />
+                <MiniCalendario value={dataSel === 'geral' ? null : dataSel} onChange={setDataSel} datasDisponiveis={datasDoPeriodo} />
                 {dataSel !== 'geral' && (
                   <span className="text-sm text-gray-500 capitalize hidden sm:inline">{formatDateFull(dataSel)}</span>
                 )}
               </div>
-              {datas.length === 0
-                ? <div className="text-center py-10 text-gray-400">Nenhuma chamada registrada ainda.</div>
+              {datasDoPeriodo.length === 0
+                ? <div className="text-center py-10 text-gray-400">Nenhuma chamada {temPeriodo ? 'nesse período' : 'registrada ainda'}.</div>
                 : dataSel === 'geral'
-                ? <TabelaGeral turmas={turmas} alunosMap={alunosMap} chamadasMap={chamadasMap} categorias={categorias} />
-                : <TabelaPorData turmas={turmas} alunosMap={alunosMap} chamadasMap={chamadasMap} categorias={categorias} dataSel={dataSel} />
+                ? <TabelaGeral turmas={turmas} alunosMap={alunosMap} chamadasMap={chamadasDoPeriodo} categorias={categorias} />
+                : <TabelaPorData turmas={turmas} alunosMap={alunosMap} chamadasMap={chamadasDoPeriodo} categorias={categorias} dataSel={dataSel} />
               }
             </div>
           )}
@@ -569,9 +637,10 @@ export default function Relatorios({ navigate }) {
               navigate={navigate}
               turmas={turmas}
               alunosMap={alunosMap}
-              chamadasMap={chamadasMap}
+              chamadasMap={chamadasDoPeriodo}
               categorias={categorias}
-              datas={datas}
+              datas={datasDoPeriodo}
+              periodo={periodo}
             />
           )}
         </>

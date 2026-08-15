@@ -33,6 +33,23 @@ export const getLastSundayOrToday = () => {
 
 export const isSunday = (dateStr) => new Date(dateStr + 'T12:00:00').getDay() === 0
 
+/**
+ * Período é inclusive nas duas pontas; null em qualquer uma significa "sem
+ * limite desse lado". Como as datas são YYYY-MM-DD, comparar como texto já
+ * dá a ordem cronológica certa — não precisa converter para Date.
+ */
+export const dentroDoPeriodo = (dateStr, inicio, fim) =>
+  (!inicio || dateStr >= inicio) && (!fim || dateStr <= fim)
+
+export const filtrarPorPeriodo = (chamadas, { inicio, fim } = {}) =>
+  (!inicio && !fim) ? chamadas : chamadas.filter(c => dentroDoPeriodo(c.data, inicio, fim))
+
+export const descreverPeriodo = ({ inicio, fim } = {}) => {
+  if (!inicio && !fim) return 'Todo o período'
+  if (inicio && fim)   return `${formatDateBR(inicio)} a ${formatDateBR(fim)}`
+  return inicio ? `A partir de ${formatDateBR(inicio)}` : `Até ${formatDateBR(fim)}`
+}
+
 export const getPastSundays = (limit = 52) => {
   const sundays = []
   const today = new Date()

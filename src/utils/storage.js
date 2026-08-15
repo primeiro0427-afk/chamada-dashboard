@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { filtrarPorPeriodo } from './dates'
 
 // ─── Escopo da igreja ─────────────────────────────────────────────────────────
 // As leituras normalmente já são limitadas pelo RLS, mas o superadmin tem bypass
@@ -251,6 +252,28 @@ export const getDatasComChamada = async () => {
   )
   if (error) throw error
   return [...new Set(data.map(c => c.data))].filter(d => new Date(d + 'T12:00:00').getDay() === 0)
+}
+
+/**
+ * Ranking somando todas as aulas do intervalo. Turma sem nenhuma chamada no
+ * período fica de fora, igual ao ranking de uma data só.
+ */
+export const getRankingPorPeriodo = async ({ inicio = null, fim = null } = {}) => {
+  const [turmas, categorias] = await Promise.all([getTurmas(), getCategorias()])
+  const porTurma = await Promise.all(turmas.map(t => getChamadas(t.id)))
+
+  return turmas
+    .map((turma, i) => {
+      const chamadas = filtrarPorPeriodo(porTurma[i], { inicio, fim })
+      return {
+        turma,
+        aulas:      chamadas.length,
+        pontos:     chamadas.reduce((sum, c) => sum + calcularPontosChamada(c, categorias), 0),
+        temChamada: chamadas.length > 0,
+      }
+    })
+    .filter(r => r.temChamada)
+    .sort((a, b) => b.pontos - a.pontos)
 }
 
 export const getRankingPorData = async (data) => {

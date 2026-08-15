@@ -17,6 +17,9 @@ import SuperAdminPanel from './pages/SuperAdminPanel'
 function AppContent() {
   const { session, profile, loading, suporte, sairDaIgreja } = useAuth()
   const [page, setPage]           = useState({ name: 'home', params: {} })
+  // Fica aqui, e não em cada página, para o período escolhido sobreviver ao
+  // navegar entre Relatórios e Ranking. Vazio = todo o histórico.
+  const [periodo, setPeriodo]     = useState({ inicio: null, fim: null })
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -91,8 +94,8 @@ function AppContent() {
             {page.name === 'chamada'       && <Chamada       params={page.params} navigate={navigate} />}
             {page.name === 'alunos'        && <Alunos        params={page.params} navigate={navigate} />}
             {page.name === 'historico'     && <Historico     params={page.params} navigate={navigate} />}
-            {page.name === 'ranking'       && <Ranking       navigate={navigate} />}
-            {page.name === 'relatorios'    && <Relatorios    navigate={navigate} />}
+            {page.name === 'ranking'       && <Ranking       navigate={navigate} periodo={periodo} setPeriodo={setPeriodo} />}
+            {page.name === 'relatorios'    && <Relatorios    navigate={navigate} periodo={periodo} setPeriodo={setPeriodo} />}
             {isAdmin && page.name === 'configuracoes' && <Configuracoes navigate={navigate} />}
             {page.name === 'trocar-senha' && <TrocarSenha navigate={navigate} />}
           </div>

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Trophy, FileText } from 'lucide-react'
-import { getDatasComChamada, getRankingPorData } from '../utils/storage'
+import { getDatasComChamada, getRankingPorData, getRankingPorPeriodo } from '../utils/storage'
 import { getCor } from '../utils/colors'
-import { formatDateFull } from '../utils/dates'
+import { formatDateFull, dentroDoPeriodo, descreverPeriodo } from '../utils/dates'
 import MiniCalendario from '../components/MiniCalendario'
+import SeletorPeriodo from '../components/SeletorPeriodo'
 
 function PodioCard({ item, pos }) {
   const cor       = getCor(item.turma.cor)
@@ -23,25 +24,37 @@ function PodioCard({ item, pos }) {
   )
 }
 
-export default function Ranking({ navigate }) {
+export default function Ranking({ navigate, periodo, setPeriodo }) {
   const [datas, setDatas]     = useState([])
-  const [dataSel, setDataSel] = useState('')
+  // 'geral' soma o período inteiro; qualquer outro valor é um domingo só.
+  const [dataSel, setDataSel] = useState('geral')
   const [ranking, setRanking] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     getDatasComChamada().then(d => {
       setDatas(d)
-      if (d.length > 0) setDataSel(d[0])
       setLoading(false)
     })
   }, [])
 
+  const datasDoPeriodo = useMemo(
+    () => datas.filter(d => dentroDoPeriodo(d, periodo.inicio, periodo.fim)),
+    [datas, periodo],
+  )
+
+  // Domingo que saiu do período volta para a visão do período inteiro.
   useEffect(() => {
-    if (!dataSel) return
+    if (dataSel !== 'geral' && !datasDoPeriodo.includes(dataSel)) setDataSel('geral')
+  }, [datasDoPeriodo, dataSel])
+
+  useEffect(() => {
     setLoading(true)
-    getRankingPorData(dataSel).then(r => { setRanking(r); setLoading(false) })
-  }, [dataSel])
+    const busca = dataSel === 'geral'
+      ? getRankingPorPeriodo(periodo)
+      : getRankingPorData(dataSel)
+    busca.then(r => { setRanking(r); setLoading(false) })
+  }, [dataSel, periodo])
 
   if (!loading && datas.length === 0) {
     return (
@@ -71,13 +84,28 @@ export default function Ranking({ navigate }) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Ranking</h2>
-          <p className="text-gray-500 capitalize">{dataSel ? formatDateFull(dataSel) : ''}</p>
+          <p className="text-gray-500 capitalize">
+            {dataSel === 'geral' ? descreverPeriodo(periodo) : formatDateFull(dataSel)}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => navigate('relatorios')} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-gray-600 no-print">
             <FileText size={15} className="text-indigo-600" /> Relatórios
           </button>
-          <MiniCalendario value={dataSel} onChange={setDataSel} datasDisponiveis={datas} />
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 space-y-3 no-print">
+        <SeletorPeriodo periodo={periodo} onChange={setPeriodo} datas={datas} />
+        <div className="flex items-center gap-2 flex-wrap border-t border-gray-100 pt-3">
+          <button onClick={() => setDataSel('geral')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${dataSel === 'geral' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-600 bg-white hover:bg-gray-50'}`}
+            title="Somar todas as aulas do período"
+          >
+            Período todo
+          </button>
+          <span className="text-sm text-gray-400">ou um domingo:</span>
+          <MiniCalendario value={dataSel === 'geral' ? null : dataSel} onChange={setDataSel} datasDisponiveis={datasDoPeriodo} />
         </div>
       </div>
 
@@ -85,7 +113,7 @@ export default function Ranking({ navigate }) {
         <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
       ) : ranking.length === 0 ? (
         <div className="text-center py-10 bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-400">Nenhuma chamada registrada nessa data.</p>
+          <p className="text-gray-400">Nenhuma chamada registrada {dataSel === 'geral' ? 'nesse período' : 'nessa data'}.</p>
         </div>
       ) : (
         <>
