@@ -1,5 +1,17 @@
 import { supabase } from './supabase'
 
+// ─── Escopo da igreja ─────────────────────────────────────────────────────────
+// As leituras normalmente já são limitadas pelo RLS, mas o superadmin tem bypass
+// e enxergaria as igrejas todas de uma vez. O AuthContext define aqui qual igreja
+// está ativa para que as consultas nunca misturem dados de igrejas diferentes.
+
+let igrejaAtivaId = null
+
+export const setIgrejaAtiva = (id) => { igrejaAtivaId = id || null }
+
+const daIgrejaAtiva = (query) =>
+  igrejaAtivaId ? query.eq('igreja_id', igrejaAtivaId) : query
+
 // ─── Mappers (Supabase snake_case → App camelCase) ───────────────────────────
 
 const mapTurma     = t => ({ id: t.id, nome: t.nome, cor: t.cor })
@@ -60,11 +72,13 @@ export const calcularPontosChamada = (chamada, categorias) => {
 // ─── Turmas ───────────────────────────────────────────────────────────────────
 
 export const getTurmas = async () => {
-  const { data, error } = await supabase
-    .from('turmas')
-    .select('*')
-    .eq('ativo', true)
-    .order('ordem')
+  const { data, error } = await daIgrejaAtiva(
+    supabase
+      .from('turmas')
+      .select('*')
+      .eq('ativo', true)
+      .order('ordem')
+  )
   if (error) throw error
   return data.map(mapTurma)
 }
@@ -101,7 +115,9 @@ export const saveTurmas = async (turmas, igrejaId) => {
 // ─── Alunos ───────────────────────────────────────────────────────────────────
 
 export const getAlunos = async (turmaId = null) => {
-  let query = supabase.from('alunos').select('*').eq('ativo', true).order('nome')
+  let query = daIgrejaAtiva(
+    supabase.from('alunos').select('*').eq('ativo', true).order('nome')
+  )
   if (turmaId) query = query.eq('turma_id', turmaId)
   const { data, error } = await query
   if (error) throw error
@@ -128,10 +144,12 @@ export const deleteAluno = async (id) => {
 // ─── Categorias ───────────────────────────────────────────────────────────────
 
 export const getCategorias = async () => {
-  const { data, error } = await supabase
-    .from('categorias')
-    .select('*')
-    .order('ordem')
+  const { data, error } = await daIgrejaAtiva(
+    supabase
+      .from('categorias')
+      .select('*')
+      .order('ordem')
+  )
   if (error) throw error
   return data.map(mapCategoria)
 }
@@ -155,10 +173,12 @@ export const saveCategorias = async (cats, igrejaId) => {
 // ─── Chamadas ─────────────────────────────────────────────────────────────────
 
 export const getChamadas = async (turmaId = null) => {
-  let query = supabase
-    .from('chamadas')
-    .select('*, registros_chamada(*)')
-    .order('data', { ascending: false })
+  let query = daIgrejaAtiva(
+    supabase
+      .from('chamadas')
+      .select('*, registros_chamada(*)')
+      .order('data', { ascending: false })
+  )
   if (turmaId) query = query.eq('turma_id', turmaId)
   const { data, error } = await query
   if (error) throw error
@@ -166,23 +186,25 @@ export const getChamadas = async (turmaId = null) => {
 }
 
 export const getChamadaByData = async (turmaId, data) => {
-  const { data: chamada, error } = await supabase
-    .from('chamadas')
-    .select('*, registros_chamada(*)')
-    .eq('turma_id', turmaId)
-    .eq('data', data)
-    .maybeSingle()
+  const { data: chamada, error } = await daIgrejaAtiva(
+    supabase
+      .from('chamadas')
+      .select('*, registros_chamada(*)')
+      .eq('turma_id', turmaId)
+      .eq('data', data)
+  ).maybeSingle()
   if (error) throw error
   return chamada ? mapChamada(chamada) : null
 }
 
 export const deletarChamada = async (turmaId, data) => {
-  const { data: chamada, error } = await supabase
-    .from('chamadas')
-    .select('id')
-    .eq('turma_id', turmaId)
-    .eq('data', data)
-    .maybeSingle()
+  const { data: chamada, error } = await daIgrejaAtiva(
+    supabase
+      .from('chamadas')
+      .select('id')
+      .eq('turma_id', turmaId)
+      .eq('data', data)
+  ).maybeSingle()
   if (error) throw error
   if (!chamada) return
   // CASCADE apaga registros_chamada automaticamente
@@ -218,10 +240,12 @@ export const saveChamada = async (chamadaData, igrejaId) => {
 // ─── Ranking e datas ──────────────────────────────────────────────────────────
 
 export const getDatasComChamada = async () => {
-  const { data, error } = await supabase
-    .from('chamadas')
-    .select('data')
-    .order('data', { ascending: false })
+  const { data, error } = await daIgrejaAtiva(
+    supabase
+      .from('chamadas')
+      .select('data')
+      .order('data', { ascending: false })
+  )
   if (error) throw error
   return [...new Set(data.map(c => c.data))].filter(d => new Date(d + 'T12:00:00').getDay() === 0)
 }

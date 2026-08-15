@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Menu } from 'lucide-react'
+import { Menu, ShieldAlert } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
@@ -14,7 +14,7 @@ import Configuracoes from './pages/Configuracoes'
 import SuperAdminPanel from './pages/SuperAdminPanel'
 
 function AppContent() {
-  const { session, profile, loading } = useAuth()
+  const { session, profile, loading, suporte, sairDaIgreja } = useAuth()
   const [page, setPage]           = useState({ name: 'home', params: {} })
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -53,6 +53,22 @@ function AppContent() {
       />
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        {/* Faixa de suporte: superadmin acessando a igreja de um cliente */}
+        {suporte && (
+          <div className="flex items-center gap-3 px-4 py-2 bg-amber-400 text-amber-950 text-sm flex-shrink-0">
+            <ShieldAlert size={16} className="flex-shrink-0" />
+            <span className="min-w-0 truncate">
+              Modo suporte — você está em <strong>{suporte.nome}</strong>. As alterações afetam os dados do cliente.
+            </span>
+            <button
+              onClick={sairDaIgreja}
+              className="ml-auto flex-shrink-0 px-3 py-1 bg-amber-950 text-amber-50 rounded-lg text-xs font-semibold hover:bg-amber-900 transition"
+            >
+              Sair da igreja
+            </button>
+          </div>
+        )}
+
         {/* Mobile top bar */}
         <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-slate-800 text-white flex-shrink-0">
           <button

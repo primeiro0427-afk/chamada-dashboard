@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Building2, Users, Plus, Trash2, CheckCircle, AlertTriangle,
-  LogOut, Eye, EyeOff, Pencil, X, Save,
+  LogOut, LogIn, Eye, EyeOff, Pencil, X, Save,
 } from 'lucide-react'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -139,6 +139,7 @@ function AbaGeral({ igrejas, profiles, igrejaNome, setAba }) {
 // ─── Aba Igrejas ──────────────────────────────────────────────────────────────
 
 function AbaIgrejas({ igrejas, profiles, reload }) {
+  const { entrarNaIgreja }        = useAuth()
   const [editando, setEditando]   = useState(null)
   const [nomeEdit, setNomeEdit]   = useState('')
   const [confirmDel, setConfirmDel] = useState(null)
@@ -212,6 +213,13 @@ function AbaIgrejas({ igrejas, profiles, reload }) {
                   </div>
                 ) : (
                   <div className="flex gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => entrarNaIgreja({ id: igreja.id, nome: igreja.nome })}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg text-xs font-medium transition"
+                      title="Acessar o sistema desta igreja para dar suporte"
+                    >
+                      <LogIn size={14} /> Acessar
+                    </button>
                     <button onClick={() => handleEditar(igreja)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Editar nome">
                       <Pencil size={15} />
                     </button>
@@ -407,12 +415,24 @@ function AbaCriar({ igrejas, reload, setAba }) {
   const [msgForm, setMsgForm]   = useState(null)
   const [showSenha, setShowSenha] = useState(false)
 
+  // Admin nasce "sem igreja" (vai criar a dele no onboarding); secretária precisa de uma existente.
+  const handleRoleChange = (role) => {
+    setForm(f => ({ ...f, role }))
+    setIgrejaSel(role === 'admin' ? '' : igrejas[0]?.id || '')
+  }
+
   const handleCriar = async (e) => {
     e.preventDefault()
     setMsgForm(null)
     setCriando(true)
     try {
-      const igId = form.role === 'admin' ? null : igrejaSel || null
+      // Admin sem igreja cria a própria no primeiro acesso (onboarding).
+      // Admin com igreja entra numa que já existe — uma igreja pode ter vários admins.
+      const igId = igrejaSel || null
+
+      if (form.role === 'secretaria' && !igId) {
+        throw new Error('Escolha a igreja da secretária.')
+      }
 
       const { data, error } = await supabase.functions.invoke('criar-usuario', {
         body: { email: form.email, password: form.senha, nome: form.nome, role: form.role, igreja_id: igId },
@@ -423,6 +443,7 @@ function AbaCriar({ igrejas, reload, setAba }) {
 
       setMsgForm({ tipo: 'ok', texto: `Usuário ${form.email} criado com sucesso!` })
       setForm({ email: '', senha: '', nome: '', role: 'secretaria' })
+      setIgrejaSel(igrejas[0]?.id || '')
       reload()
     } catch (err) {
       setMsgForm({ tipo: 'erro', texto: err.message || 'Erro ao criar usuário.' })
@@ -465,7 +486,7 @@ function AbaCriar({ igrejas, reload, setAba }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Função</label>
-            <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+            <select value={form.role} onChange={e => handleRoleChange(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
             >
               <option value="secretaria">Secretária</option>
@@ -474,20 +495,25 @@ function AbaCriar({ igrejas, reload, setAba }) {
           </div>
         </div>
 
-        {form.role === 'secretaria' && (
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Igreja</label>
-            <select value={igrejaSel} onChange={e => setIgrejaSel(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            >
-              {igrejas.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
-            </select>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Igreja</label>
+          <select value={igrejaSel} onChange={e => setIgrejaSel(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          >
+            {form.role === 'admin' && <option value="">➕ Nova igreja (criada no 1º acesso)</option>}
+            {igrejas.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
+          </select>
+        </div>
+
+        {form.role === 'admin' && !igrejaSel && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+            O admin fará login e configurará o nome da própria igreja no primeiro acesso.
           </div>
         )}
 
-        {form.role === 'admin' && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-            O admin fará login e configurará o nome da própria igreja no primeiro acesso.
+        {form.role === 'admin' && igrejaSel && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-xs text-indigo-700">
+            Este admin entrará numa igreja que já existe. Uma igreja pode ter mais de um admin.
           </div>
         )}
 
