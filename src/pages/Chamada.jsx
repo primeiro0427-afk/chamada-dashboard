@@ -142,7 +142,7 @@ export default function Chamada({ params, navigate }) {
       const extMap  = {}
       const catsSem = cats.filter(c => c.id !== 'presenca')
 
-      sorted.forEach(a => {
+      lista.forEach(a => {
         presMap[a.id] = null
         extMap[a.id]  = {}
         catsSem.forEach(c => {
