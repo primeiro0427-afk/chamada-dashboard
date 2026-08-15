@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Users, BarChart2, CheckCircle, XCircle, RefreshCw,
-  Check, X, Save, Search, ChevronRight, ChevronLeft, Star, Pencil,
+  Check, X, Save, Search, ChevronRight, ChevronLeft, Star, Pencil, AlertTriangle,
 } from 'lucide-react'
 import {
   getTurmas, getAlunos, getChamadaByData, saveChamada,
@@ -119,6 +119,7 @@ export default function Chamada({ params, navigate }) {
   const [recentSave, setRecentSave]     = useState(false)
   const [confirmExcluir, setConfirmExcluir] = useState(false)
   const [modo, setModo]             = useState(null)
+  const [erroCarregar, setErroCarregar] = useState('')
   const [abaView, setAbaView]       = useState('presenca')
   const [etapa, setEtapa]           = useState(1)
 
@@ -133,6 +134,9 @@ export default function Chamada({ params, navigate }) {
       ])
 
       const t = turmas.find(t => t.id === turmaId)
+      // Turma removida ou desativada: sem isso a tela ficaria em "Carregando..."
+      // para sempre, porque o render espera turma preenchida.
+      if (!t) throw new Error('Turma não encontrada. Ela pode ter sido removida.')
       setTurma(t)
 
       setAlunos(lista) // já vem em ordem alfabética de getAlunos
@@ -165,7 +169,12 @@ export default function Chamada({ params, navigate }) {
       setExtras(extMap)
       setModo(existente ? 'view' : 'novo')
     }
-    load()
+    // Sem o catch, qualquer falha aqui deixava a tela em "Carregando..." para
+    // sempre, porque o setModo nunca chegava a rodar.
+    load().catch(err => {
+      console.error('Erro ao carregar a chamada:', err)
+      setErroCarregar(err.message || 'Não foi possível carregar a chamada.')
+    })
   }, [turmaId, data, igrejaId])
 
   // ── Computed ────────────────────────────────────────────────────────────────
@@ -206,14 +215,19 @@ export default function Chamada({ params, navigate }) {
 
   // ── Extras handlers ─────────────────────────────────────────────────────────
 
+  // O ?? {} evita quebrar a tela inteira caso o aluno ainda não tenha entrada
+  // em extras (aluno criado depois da chamada, categoria nova, etc.).
   const toggleExtra = (alunoId, catId) => {
     setSaved(false)
-    setExtras(prev => ({ ...prev, [alunoId]: { ...prev[alunoId], [catId]: !prev[alunoId][catId] } }))
+    setExtras(prev => {
+      const doAluno = prev[alunoId] ?? {}
+      return { ...prev, [alunoId]: { ...doAluno, [catId]: !doAluno[catId] } }
+    })
   }
 
   const setNumerico = (alunoId, catId, value) => {
     setSaved(false)
-    setExtras(prev => ({ ...prev, [alunoId]: { ...prev[alunoId], [catId]: value } }))
+    setExtras(prev => ({ ...prev, [alunoId]: { ...(prev[alunoId] ?? {}), [catId]: value } }))
   }
 
   // ── Save helpers ────────────────────────────────────────────────────────────
@@ -276,6 +290,17 @@ export default function Chamada({ params, navigate }) {
     setSaving(false)
     setSaved(true)
   }
+
+  if (erroCarregar) return (
+    <div className="max-w-md mx-auto text-center py-12 space-y-4">
+      <AlertTriangle size={32} className="text-red-500 mx-auto" />
+      <p className="text-gray-700 font-medium">Não foi possível abrir a chamada</p>
+      <p className="text-sm text-gray-500">{erroCarregar}</p>
+      <button onClick={() => navigate('home')} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+        Voltar para o início
+      </button>
+    </div>
+  )
 
   if (modo === null || !turma) return (
     <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
