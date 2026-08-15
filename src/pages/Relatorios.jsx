@@ -3,6 +3,7 @@ import { Download, Printer, ChevronRight, Check, X, Trophy } from 'lucide-react'
 import { getTurmas, getAlunos, getChamadas, getCategorias, getDatasComChamada, calcularPontosRegistro } from '../utils/storage'
 import { getCor } from '../utils/colors'
 import { formatDateFull, formatDateBR } from '../utils/dates'
+import { baixarCSV } from '../utils/csv'
 import MiniCalendario from '../components/MiniCalendario'
 
 const FREQ_MIN = 50
@@ -329,18 +330,13 @@ export default function Relatorios({ navigate }) {
   }), [dados])
 
   const exportarCSVGeral = () => {
-    const header = ['Turma', 'Aluno', 'Matricula', 'Presencas', 'Total Aulas', 'Frequencia (%)']
-    const rows   = dados.flatMap(({ turma, frequencias }) =>
-      frequencias.map(f => [`"${turma.nome}"`, `"${f.aluno.nome}"`, f.aluno.matricula || '', f.presencas, f.totalAulas, f.pct !== null ? f.pct : 'N/A'])
+    const header = ['Turma', 'Aluno', 'Matrícula', 'Presenças', 'Total de Aulas', 'Frequência (%)']
+    const linhas = dados.flatMap(({ turma, frequencias }) =>
+      frequencias.map(f => [
+        turma.nome, f.aluno.nome, f.aluno.matricula || '', f.presencas, f.totalAulas, f.pct !== null ? f.pct : 'N/A',
+      ])
     )
-    const csv  = [header, ...rows].map(r => r.join(',')).join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `relatorio-geral-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    baixarCSV(`relatorio-geral-${new Date().toISOString().split('T')[0]}.csv`, header, linhas)
   }
 
   return (

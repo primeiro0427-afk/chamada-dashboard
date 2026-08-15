@@ -3,6 +3,7 @@ import { Download, Printer, CheckCircle, XCircle, AlertTriangle, BarChart2, Cale
 import { getTurmas, getAlunos, getChamadas } from '../utils/storage'
 import { formatDateBR, formatDateFull, isSunday, getLastSundayOrToday } from '../utils/dates'
 import { getCor } from '../utils/colors'
+import { baixarCSV } from '../utils/csv'
 
 const FREQ_MIN = 50
 
@@ -103,18 +104,11 @@ export default function Historico({ params, navigate }) {
   if (!turma)   return null
 
   const exportCSV = () => {
-    const header = ['Nome', 'Matricula', 'Presencas', 'Total Aulas', 'Frequencia (%)']
-    const rows = frequencias.map(f => [
-      `"${f.aluno.nome}"`, f.aluno.matricula || '', f.presencas, f.total, f.pct !== null ? f.pct : 'N/A',
+    const header = ['Nome', 'Matrícula', 'Presenças', 'Total de Aulas', 'Frequência (%)']
+    const linhas = frequencias.map(f => [
+      f.aluno.nome, f.aluno.matricula || '', f.presencas, f.total, f.pct !== null ? f.pct : 'N/A',
     ])
-    const csv  = [header, ...rows].map(r => r.join(',')).join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `frequencia-${turma.nome}-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    baixarCSV(`frequencia-${turma.nome}-${new Date().toISOString().split('T')[0]}.csv`, header, linhas)
   }
 
   const totalAulas       = chamadas.length
