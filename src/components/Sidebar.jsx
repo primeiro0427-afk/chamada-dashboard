@@ -1,4 +1,4 @@
-import { Home, Users, BarChart2, FileText, Settings, Menu, ClipboardList, Trophy, LogOut } from 'lucide-react'
+import { Home, Users, BarChart2, FileText, Settings, Menu, ClipboardList, Trophy, LogOut, KeyRound } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 const NAV_COMPLETO = [
@@ -14,6 +14,8 @@ const NAV_SECRETARIA = NAV_COMPLETO
 
 const BOTTOM_ITEMS = [
   { id: 'configuracoes', label: 'Configurações', Icon: Settings, adminOnly: true },
+  // Fica fora do adminOnly de propósito: a secretária não entra em Configurações.
+  { id: 'trocar-senha',  label: 'Trocar senha',  Icon: KeyRound },
 ]
 
 const PAGE_TO_NAV = {
@@ -24,6 +26,7 @@ const PAGE_TO_NAV = {
   ranking:       'ranking',
   relatorios:    'relatorios',
   configuracoes: 'configuracoes',
+  'trocar-senha': 'trocar-senha',
 }
 
 export default function Sidebar({ page, navigate, collapsed, onToggle, mobileOpen, onMobileClose, isAdmin }) {

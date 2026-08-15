@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { GraduationCap, ChevronUp, ChevronDown, Trash2, AlertTriangle, CheckCircle, Save, Star, Users, Copy, Upload } from 'lucide-react'
+import { GraduationCap, ChevronUp, ChevronDown, Trash2, AlertTriangle, CheckCircle, Save, Star, Users, Copy, Upload, KeyRound } from 'lucide-react'
 import { getTurmas, saveTurmas, getChamadas, getCategorias, saveCategorias, DEFAULT_CATEGORIAS, importarBackup } from '../utils/storage'
 import { getCor, CORES_LISTA } from '../utils/colors'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../utils/supabase'
+import TrocarSenha from './TrocarSenha'
 
 // ─── Seção: Turmas ────────────────────────────────────────────────────────────
 
@@ -374,12 +375,14 @@ export default function Configuracoes() {
     { id: 'turmas',    label: 'Turmas',    Icon: GraduationCap, desc: 'Nomes, cores e quantidade' },
     { id: 'pontuacao', label: 'Pontuação', Icon: Star,          desc: 'Critérios e pontos da EBD' },
     { id: 'importar',  label: 'Importar',  Icon: Upload,        desc: 'Backup do sistema antigo' },
+    { id: 'conta',     label: 'Minha conta', Icon: KeyRound,    desc: 'Trocar a sua senha' },
   ]
 
   const CONTEUDO = {
     turmas:    <SecaoTurmas    igrejaId={igrejaId} />,
     pontuacao: <SecaoPontuacao igrejaId={igrejaId} />,
     importar:  <SecaoImportar  igrejaId={igrejaId} />,
+    conta:     <TrocarSenha />,
   }
 
   return (

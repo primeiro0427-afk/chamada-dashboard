@@ -23,7 +23,8 @@ Deno.serve(async (req) => {
       email,
       password,
       email_confirm: true,
-      user_metadata: { nome, role, igreja_id: igreja_id ?? null },
+      // A senha entregue pelo painel é provisória: o usuário troca no 1º acesso.
+      user_metadata: { nome, role, igreja_id: igreja_id ?? null, senha_provisoria: true },
     })
 
     if (error) throw error

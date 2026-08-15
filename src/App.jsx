@@ -11,6 +11,7 @@ import Historico from './pages/Historico'
 import Ranking from './pages/Ranking'
 import Relatorios from './pages/Relatorios'
 import Configuracoes from './pages/Configuracoes'
+import TrocarSenha from './pages/TrocarSenha'
 import SuperAdminPanel from './pages/SuperAdminPanel'
 
 function AppContent() {
@@ -33,6 +34,9 @@ function AppContent() {
   }
 
   if (!session) return <Login />
+
+  // Senha provisória bloqueia tudo até ser trocada, inclusive o onboarding.
+  if (profile?.senha_provisoria) return <TrocarSenha obrigatoria />
 
   if (profile?.role === 'superadmin') return <SuperAdminPanel />
 
@@ -90,6 +94,7 @@ function AppContent() {
             {page.name === 'ranking'       && <Ranking       navigate={navigate} />}
             {page.name === 'relatorios'    && <Relatorios    navigate={navigate} />}
             {isAdmin && page.name === 'configuracoes' && <Configuracoes navigate={navigate} />}
+            {page.name === 'trocar-senha' && <TrocarSenha navigate={navigate} />}
           </div>
         </main>
       </div>
