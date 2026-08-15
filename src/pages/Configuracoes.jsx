@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { GraduationCap, ChevronUp, ChevronDown, Trash2, AlertTriangle, CheckCircle, Save, Star, Users, Copy, Upload, KeyRound } from 'lucide-react'
-import { getTurmas, saveTurmas, getChamadas, getCategorias, saveCategorias, DEFAULT_CATEGORIAS, importarBackup } from '../utils/storage'
+import { GraduationCap, ChevronUp, ChevronDown, Trash2, AlertTriangle, CheckCircle, Save, Star, Users, Copy, Upload, Download, KeyRound } from 'lucide-react'
+import { getTurmas, saveTurmas, getChamadas, getCategorias, saveCategorias, DEFAULT_CATEGORIAS, importarBackup, exportarBackup } from '../utils/storage'
+import { baixarArquivo } from '../utils/download'
+import { formatDate } from '../utils/dates'
 import { getCor, CORES_LISTA } from '../utils/colors'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../utils/supabase'
@@ -288,11 +290,29 @@ function SecaoUsuarios({ igrejaId }) {
   )
 }
 
-// ─── Seção: Importar Backup ───────────────────────────────────────────────────
+// ─── Seção: Backup ────────────────────────────────────────────────────────────
 
 function SecaoImportar({ igrejaId }) {
   const [status, setStatus]   = useState(null) // null | 'loading' | 'ok' | 'erro'
   const [msg, setMsg]         = useState('')
+  const [baixando, setBaixando] = useState(false)
+  const [erroExport, setErroExport] = useState('')
+
+  const handleExportar = async () => {
+    setBaixando(true)
+    setErroExport('')
+    try {
+      const dados = await exportarBackup()
+      baixarArquivo(
+        `backup-ebd-${formatDate(new Date())}.json`,
+        JSON.stringify(dados, null, 2),
+        'application/json',
+      )
+    } catch (err) {
+      setErroExport(err.message || 'Não foi possível gerar o backup.')
+    }
+    setBaixando(false)
+  }
 
   const handleFile = async (e) => {
     const file = e.target.files[0]
@@ -318,16 +338,57 @@ function SecaoImportar({ igrejaId }) {
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="text-lg font-bold text-gray-800">Importar Backup</h3>
-        <p className="text-sm text-gray-500">Importe os dados do sistema antigo (arquivo JSON de backup).</p>
+        <h3 className="text-lg font-bold text-gray-800">Backup</h3>
+        <p className="text-sm text-gray-500">Baixe uma cópia dos seus dados ou restaure a partir de um arquivo.</p>
+      </div>
+
+      {/* ── Exportar ─────────────────────────────────────────────────────── */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div>
+          <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+            <Download size={16} className="text-indigo-600" /> Baixar meus dados
+          </h4>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Gera um arquivo JSON com turmas, alunos, pontuação e todas as chamadas desta igreja.
+            Guarde fora do sistema — é a sua cópia de segurança.
+          </p>
+        </div>
+
+        <button
+          onClick={handleExportar}
+          disabled={baixando}
+          className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-50"
+        >
+          {baixando ? 'Gerando...' : 'Baixar backup'}
+        </button>
+
+        {erroExport && (
+          <p className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" /> {erroExport}
+          </p>
+        )}
+
+        <p className="text-xs text-gray-400">
+          Alunos e turmas que você removeu não entram no arquivo.
+        </p>
+      </div>
+
+      {/* ── Importar ─────────────────────────────────────────────────────── */}
+      <div className="pt-1">
+        <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+          <Upload size={16} className="text-indigo-600" /> Restaurar de um arquivo
+        </h4>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Serve para um backup baixado aqui ou para o JSON exportado do sistema antigo.
+        </p>
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <p className="font-semibold mb-1">Antes de importar:</p>
+        <p className="font-semibold mb-1">Atenção:</p>
         <ul className="list-disc list-inside space-y-1 text-amber-700">
-          <li>Acesse o sistema antigo no seu computador</li>
-          <li>Vá em <strong>Início → Exportar Backup</strong> e salve o arquivo JSON</li>
-          <li>Volte aqui e selecione o arquivo abaixo</li>
+          <li>A importação <strong>soma</strong> aos dados atuais, não substitui</li>
+          <li>Importar duas vezes o mesmo arquivo duplica as turmas e os alunos</li>
+          <li>Se o arquivo tiver pontuação, ela sobrescreve a configuração atual</li>
         </ul>
       </div>
 
@@ -374,7 +435,7 @@ export default function Configuracoes() {
   const SECOES = [
     { id: 'turmas',    label: 'Turmas',    Icon: GraduationCap, desc: 'Nomes, cores e quantidade' },
     { id: 'pontuacao', label: 'Pontuação', Icon: Star,          desc: 'Critérios e pontos da EBD' },
-    { id: 'importar',  label: 'Importar',  Icon: Upload,        desc: 'Backup do sistema antigo' },
+    { id: 'importar',  label: 'Backup',    Icon: Upload,        desc: 'Baixar ou restaurar dados' },
     { id: 'conta',     label: 'Minha conta', Icon: KeyRound,    desc: 'Trocar a sua senha' },
   ]
 

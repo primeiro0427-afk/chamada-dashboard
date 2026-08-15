@@ -292,7 +292,30 @@ export const getRankingPorData = async (data) => {
 // migrarDatasParaDomingo não é necessária com Supabase (datas já são corretas)
 export const migrarDatasParaDomingo = () => {}
 
-// ─── Importar backup do localStorage ─────────────────────────────────────────
+// ─── Backup ───────────────────────────────────────────────────────────────────
+
+/**
+ * Cópia completa dos dados da igreja, no mesmo formato que importarBackup lê.
+ *
+ * Só sai o que está ativo: aluno e turma removidos são desativados, não
+ * apagados, então não voltam num restore.
+ */
+export const exportarBackup = async () => {
+  const [turmas, alunos, categorias, chamadas] = await Promise.all([
+    getTurmas(), getAlunos(), getCategorias(), getChamadas(),
+  ])
+
+  return {
+    versao:      1,
+    exportadoEm: new Date().toISOString(),
+    turmas,
+    alunos,
+    categorias,
+    chamadas,
+  }
+}
+
+// ─── Importar backup ──────────────────────────────────────────────────────────
 
 const corrigirParaDomingo = (dataStr) => {
   const d = new Date(dataStr + 'T12:00:00')
@@ -303,10 +326,16 @@ const corrigirParaDomingo = (dataStr) => {
 }
 
 export const importarBackup = async (dados, igrejaId) => {
-  const { turmas = [], alunos = [], chamadas = [] } = dados
+  const { turmas = [], alunos = [], chamadas = [], categorias = [] } = dados
 
   const turmaIdMap = {}
   const alunoIdMap = {}
+
+  // Backups do sistema antigo não têm categorias; nesse caso a pontuação
+  // configurada na igreja é mantida como está.
+  if (categorias.length > 0) {
+    await saveCategorias(categorias, igrejaId)
+  }
 
   // 1. Turmas
   if (turmas.length > 0) {

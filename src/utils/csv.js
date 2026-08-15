@@ -1,3 +1,5 @@
+import { baixarArquivo } from './download'
+
 // Geração de CSV para abrir no Excel em português.
 //
 // O Excel usa o separador de lista do Windows, que no Brasil é ";". Com vírgula
@@ -31,11 +33,5 @@ export const baixarCSV = (nomeArquivo, header, linhas, meta = []) => {
   const csv = blocos.join('\r\n')
 
   // O BOM faz o Excel reconhecer o arquivo como UTF-8 e não quebrar os acentos.
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href     = url
-  a.download = nomeArquivo
-  a.click()
-  URL.revokeObjectURL(url)
+  baixarArquivo(nomeArquivo, '﻿' + csv, 'text/csv;charset=utf-8;')
 }
