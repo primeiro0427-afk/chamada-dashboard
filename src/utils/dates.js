@@ -1,4 +1,5 @@
-export const getToday = () => new Date().toISOString().split('T')[0]
+// Não existe getToday aqui de propósito: a versão com toISOString devolve a
+// data de amanhã depois das 21h no Brasil. Para "hoje", use formatDate(new Date()).
 
 export const formatDate = (date) => {
   const d = typeof date === 'string' ? new Date(date + 'T12:00:00') : date

@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { filtrarPorPeriodo } from './dates'
+import { filtrarPorPeriodo, formatDate } from './dates'
 
 // ─── Escopo da igreja ─────────────────────────────────────────────────────────
 // As leituras normalmente já são limitadas pelo RLS, mas o superadmin tem bypass
@@ -322,7 +322,7 @@ const corrigirParaDomingo = (dataStr) => {
   const dow = d.getDay()
   if (dow === 0) return dataStr
   d.setDate(d.getDate() - dow)
-  return d.toISOString().split('T')[0]
+  return formatDate(d) // local; toISOString aqui dependeria do fuso
 }
 
 export const importarBackup = async (dados, igrejaId) => {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ClipboardList, Users, Pencil, Trash2, Search } from 'lucide-react'
 import { getTurmas, getAlunos, saveAluno, deleteAluno } from '../utils/storage'
 import { getCor } from '../utils/colors'
+import { getLastSundayOrToday } from '../utils/dates'
 import { useAuth } from '../contexts/AuthContext'
 
 function SeletorTurma({ navigate }) {
@@ -126,7 +127,7 @@ export default function Alunos({ params, navigate }) {
           <p className="text-gray-500">{alunos.length} aluno{alunos.length !== 1 ? 's' : ''} matriculado{alunos.length !== 1 ? 's' : ''}</p>
         </div>
         <button
-          onClick={() => navigate('chamada', { turmaId, data: new Date().toISOString().split('T')[0] })}
+          onClick={() => navigate('chamada', { turmaId, data: getLastSundayOrToday() })}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition"
         >
           <ClipboardList size={15} className="text-white" />
