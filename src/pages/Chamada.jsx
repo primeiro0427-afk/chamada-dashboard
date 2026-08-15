@@ -12,9 +12,10 @@ import { useAuth } from '../contexts/AuthContext'
 
 // Componente fora da função principal para evitar perda de foco nos inputs
 function PontuacaoLista({ alunos, registros, extras, configCats, catsSemPresenca, toggleExtra, setNumerico, readonly }) {
+  // Presentes primeiro (é quem recebe pontuação), alfabético dentro de cada grupo.
   const alunosOrd = [...alunos].sort((a, b) => {
     const ap = registros[a.id] === true, bp = registros[b.id] === true
-    if (ap === bp) return a.nome.localeCompare(b.nome)
+    if (ap === bp) return a.nome.localeCompare(b.nome, 'pt-BR')
     return ap ? -1 : 1
   })
 
@@ -134,8 +135,7 @@ export default function Chamada({ params, navigate }) {
       const t = turmas.find(t => t.id === turmaId)
       setTurma(t)
 
-      const sorted = lista.sort((a, b) => a.nome.localeCompare(b.nome))
-      setAlunos(sorted)
+      setAlunos(lista) // já vem em ordem alfabética de getAlunos
       setConfigCats(cats)
 
       const presMap = {}

@@ -74,7 +74,7 @@ export default function Historico({ params, navigate }) {
         getChamadas(turmaId),
       ])
       setTurma(turmas.find(t => t.id === turmaId))
-      setAlunos(a.sort((a, b) => a.nome.localeCompare(b.nome)))
+      setAlunos(a) // já vem em ordem alfabética de getAlunos
       const sorted = c.filter(ch => isSunday(ch.data)).sort((a, b) => b.data.localeCompare(a.data))
       setChamadas(sorted)
       if (sorted.length > 0) setSelectedData(sorted[0].data)
@@ -91,6 +91,8 @@ export default function Historico({ params, navigate }) {
         const pct = total > 0 ? Math.round((presencas / total) * 100) : null
         return { aluno, presencas, total, pct }
       })
+      // De propósito não é alfabético: aqui o que interessa é achar quem está
+      // faltando. Empate mantém a ordem alfabética que veio de getAlunos.
       .sort((a, b) => {
         if (a.pct === null && b.pct === null) return 0
         if (a.pct === null) return 1

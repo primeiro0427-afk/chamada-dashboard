@@ -74,7 +74,7 @@ export default function Alunos({ params, navigate }) {
       getAlunos(turmaId),
     ])
     setTurma(turmas.find(t => t.id === turmaId))
-    setAlunos(lista.sort((a, b) => a.nome.localeCompare(b.nome)))
+    setAlunos(lista) // já vem em ordem alfabética de getAlunos
     setLoading(false)
   }
 

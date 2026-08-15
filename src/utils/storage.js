@@ -121,7 +121,10 @@ export const getAlunos = async (turmaId = null) => {
   if (turmaId) query = query.eq('turma_id', turmaId)
   const { data, error } = await query
   if (error) throw error
-  return data.map(mapAluno)
+  // O banco já devolve ordenado, mas pela regra de ordenação dele. Reordenar em
+  // pt-BR é o que trata acento e maiúscula do jeito que se espera em português,
+  // e garante a mesma ordem em todas as telas.
+  return data.map(mapAluno).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
 export const saveAluno = async (aluno, igrejaId) => {

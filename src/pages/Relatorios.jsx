@@ -18,7 +18,7 @@ function TabelaPorData({ turmas, alunosMap, chamadasMap, categorias, dataSel }) 
         const cor     = getCor(turma.cor)
         const chamada = (chamadasMap[turma.id] || []).find(c => c.data === dataSel)
         if (!chamada) return null
-        const alunos     = (alunosMap[turma.id] || []).sort((a, b) => a.nome.localeCompare(b.nome))
+        const alunos     = alunosMap[turma.id] || []
         const totalPontos = chamada.registros.reduce((sum, r) => sum + calcularPontosRegistro(r, categorias), 0)
         return (
           <div key={turma.id} className={`bg-white border-l-4 ${cor.border} rounded-xl overflow-hidden shadow-sm`}>
@@ -84,7 +84,7 @@ function TabelaGeral({ turmas, alunosMap, chamadasMap, categorias }) {
     <>
       {turmas.map(turma => {
         const cor     = getCor(turma.cor)
-        const alunos  = (alunosMap[turma.id] || []).sort((a, b) => a.nome.localeCompare(b.nome))
+        const alunos  = alunosMap[turma.id] || []
         const chamadas = chamadasMap[turma.id] || []
         const acumulado = alunos.map(aluno => {
           const contagem = {}
