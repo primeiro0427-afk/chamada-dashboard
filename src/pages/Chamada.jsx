@@ -296,6 +296,9 @@ export default function Chamada({ params, navigate }) {
       <AlertTriangle size={32} className="text-red-500 mx-auto" />
       <p className="text-gray-700 font-medium">Não foi possível abrir a chamada</p>
       <p className="text-sm text-gray-500">{erroCarregar}</p>
+      <p className="text-xs text-gray-400">
+        Se continuar acontecendo, avise o responsável pelo sistema e diga esta mensagem.
+      </p>
       <button onClick={() => navigate('home')} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
         Voltar para o início
       </button>
