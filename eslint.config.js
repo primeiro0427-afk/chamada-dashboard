@@ -14,7 +14,9 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      globals: globals.browser,
+      // __BUILD_ID__ é injetado pelo Vite (define), então o lint precisa saber
+      // que existe — senão cai como no-undef.
+      globals: { ...globals.browser, __BUILD_ID__: 'readonly' },
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },

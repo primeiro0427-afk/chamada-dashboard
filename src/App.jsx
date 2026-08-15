@@ -13,6 +13,7 @@ import Relatorios from './pages/Relatorios'
 import Configuracoes from './pages/Configuracoes'
 import TrocarSenha from './pages/TrocarSenha'
 import SuperAdminPanel from './pages/SuperAdminPanel'
+import AvisoNovaVersao from './components/AvisoNovaVersao'
 
 function AppContent() {
   const { session, profile, loading, suporte, sairDaIgreja } = useAuth()
@@ -109,6 +110,9 @@ export default function App() {
   return (
     <AuthProvider>
       <AppContent />
+      {/* Fora do AppContent para aparecer em qualquer tela, inclusive no login
+          e no painel do superadmin. É position:fixed, não ocupa espaço. */}
+      <AvisoNovaVersao />
     </AuthProvider>
   )
 }
