@@ -343,7 +343,9 @@ export default function Relatorios({ navigate, periodo, setPeriodo }) {
   const [datas, setDatas]           = useState([])
   const [aba, setAba]               = useState('frequencia')
   const [loading, setLoading]       = useState(true)
-  const [dataSel, setDataSel]       = useState('geral')
+  // Aba Pontuação. null = ainda não escolheu, abre no domingo mais recente;
+  // 'geral' acumula o período e só aparece quando a pessoa pede.
+  const [dataSel, setDataSel]       = useState(null)
 
   useEffect(() => {
     const load = async () => {
@@ -382,9 +384,12 @@ export default function Relatorios({ navigate, periodo, setPeriodo }) {
 
   const temPeriodo = !!periodo.inicio || !!periodo.fim
 
-  // Se o domingo escolhido ficou fora do período novo, volta para a visão geral.
+  // datasDoPeriodo vem em ordem decrescente, então [0] é o último domingo com chamada.
+  const dataAtiva = dataSel ?? datasDoPeriodo[0] ?? 'geral'
+
+  // Se o domingo escolhido ficou fora do período novo, volta a seguir o mais recente.
   useEffect(() => {
-    if (dataSel !== 'geral' && !datasDoPeriodo.includes(dataSel)) setDataSel('geral')
+    if (dataSel && dataSel !== 'geral' && !datasDoPeriodo.includes(dataSel)) setDataSel(null)
   }, [datasDoPeriodo, dataSel])
 
   const dados = useMemo(() => turmas.map(turma => {
@@ -442,7 +447,7 @@ export default function Relatorios({ navigate, periodo, setPeriodo }) {
     const cats = categorias.filter(c => c.ativo && c.id !== 'presenca')
 
     // "Geral" soma todas as aulas; uma data específica exporta só aquela chamada.
-    if (dataSel === 'geral') {
+    if (dataAtiva === 'geral') {
       const header = ['Turma', 'Aluno', 'Matrícula', 'Presenças', ...cats.map(c => c.nome), 'Total de Pontos']
       const linhas = turmas.flatMap(turma =>
         calcularAcumulado(alunosMap[turma.id] || [], chamadasDoPeriodo[turma.id] || [], categorias)
@@ -461,7 +466,7 @@ export default function Relatorios({ navigate, periodo, setPeriodo }) {
 
     const header = ['Turma', 'Aluno', 'Matrícula', 'Presente', ...cats.map(c => c.nome), 'Pontos']
     const linhas = turmas.flatMap(turma => {
-      const chamada = (chamadasDoPeriodo[turma.id] || []).find(c => c.data === dataSel)
+      const chamada = (chamadasDoPeriodo[turma.id] || []).find(c => c.data === dataAtiva)
       if (!chamada) return []
       return (alunosMap[turma.id] || []).flatMap(aluno => {
         const reg = chamada.registros.find(r => r.alunoId === aluno.id)
@@ -475,10 +480,10 @@ export default function Relatorios({ navigate, periodo, setPeriodo }) {
       })
     })
     baixarCSV(
-      `pontuacao-${dataSel}.csv`, header, linhas,
+      `pontuacao-${dataAtiva}.csv`, header, linhas,
       [['Relatório de Pontuação'],
        ['Gerado em', formatDateBR(hojeArquivo())],
-       ['Aula de', formatDateBR(dataSel)]],
+       ['Aula de', formatDateBR(dataAtiva)]],
     )
   }
 
@@ -611,22 +616,23 @@ export default function Relatorios({ navigate, periodo, setPeriodo }) {
           {aba === 'pontuacao' && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 flex-wrap">
+                <MiniCalendario value={dataAtiva === 'geral' ? null : dataAtiva} onChange={setDataSel} datasDisponiveis={datasDoPeriodo} />
+                <span className="text-sm text-gray-400">ou</span>
                 <button onClick={() => setDataSel('geral')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${dataSel === 'geral' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-600 bg-white hover:bg-gray-50'}`}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${dataAtiva === 'geral' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-600 bg-white hover:bg-gray-50'}`}
                   title="Somar todas as aulas do período selecionado"
                 >
                   {temPeriodo ? 'Período todo' : 'Geral'}
                 </button>
-                <MiniCalendario value={dataSel === 'geral' ? null : dataSel} onChange={setDataSel} datasDisponiveis={datasDoPeriodo} />
-                {dataSel !== 'geral' && (
-                  <span className="text-sm text-gray-500 capitalize hidden sm:inline">{formatDateFull(dataSel)}</span>
+                {dataAtiva !== 'geral' && (
+                  <span className="text-sm text-gray-500 capitalize hidden sm:inline">{formatDateFull(dataAtiva)}</span>
                 )}
               </div>
               {datasDoPeriodo.length === 0
                 ? <div className="text-center py-10 text-gray-400">Nenhuma chamada {temPeriodo ? 'nesse período' : 'registrada ainda'}.</div>
-                : dataSel === 'geral'
+                : dataAtiva === 'geral'
                 ? <TabelaGeral turmas={turmas} alunosMap={alunosMap} chamadasMap={chamadasDoPeriodo} categorias={categorias} />
-                : <TabelaPorData turmas={turmas} alunosMap={alunosMap} chamadasMap={chamadasDoPeriodo} categorias={categorias} dataSel={dataSel} />
+                : <TabelaPorData turmas={turmas} alunosMap={alunosMap} chamadasMap={chamadasDoPeriodo} categorias={categorias} dataSel={dataAtiva} />
               }
             </div>
           )}

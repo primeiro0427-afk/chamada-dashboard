@@ -25,38 +25,41 @@ function PodioCard({ item, pos }) {
 }
 
 export default function Ranking({ navigate, periodo, setPeriodo }) {
-  const [datas, setDatas]     = useState([])
-  // 'geral' soma o período inteiro; qualquer outro valor é um domingo só.
-  const [dataSel, setDataSel] = useState('geral')
+  // null enquanto não sabemos quais domingos existem.
+  const [datas, setDatas]     = useState(null)
+  // null = ainda não escolheu, abre no domingo mais recente. 'geral' soma o
+  // período inteiro e só aparece quando a pessoa pede. Resto é um domingo só.
+  const [dataSel, setDataSel] = useState(null)
   const [ranking, setRanking] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    getDatasComChamada().then(d => {
-      setDatas(d)
-      setLoading(false)
-    })
-  }, [])
+  useEffect(() => { getDatasComChamada().then(setDatas) }, [])
 
   const datasDoPeriodo = useMemo(
-    () => datas.filter(d => dentroDoPeriodo(d, periodo.inicio, periodo.fim)),
+    () => (datas ?? []).filter(d => dentroDoPeriodo(d, periodo.inicio, periodo.fim)),
     [datas, periodo],
   )
 
-  // Domingo que saiu do período volta para a visão do período inteiro.
+  // getDatasComChamada devolve em ordem decrescente, então [0] é o último domingo.
+  const dataAtiva  = dataSel ?? datasDoPeriodo[0] ?? 'geral'
+  const temPeriodo = !!periodo.inicio || !!periodo.fim
+
+  // Domingo que saiu do período volta a seguir o mais recente que sobrou.
   useEffect(() => {
-    if (dataSel !== 'geral' && !datasDoPeriodo.includes(dataSel)) setDataSel('geral')
+    if (dataSel && dataSel !== 'geral' && !datasDoPeriodo.includes(dataSel)) setDataSel(null)
   }, [datasDoPeriodo, dataSel])
 
   useEffect(() => {
+    // Sem saber os domingos, dataAtiva seria 'geral' e buscaríamos o que não foi pedido.
+    if (!datas) return
     setLoading(true)
-    const busca = dataSel === 'geral'
+    const busca = dataAtiva === 'geral'
       ? getRankingPorPeriodo(periodo)
-      : getRankingPorData(dataSel)
+      : getRankingPorData(dataAtiva)
     busca.then(r => { setRanking(r); setLoading(false) })
-  }, [dataSel, periodo])
+  }, [datas, dataAtiva, periodo])
 
-  if (!loading && datas.length === 0) {
+  if (!loading && datas?.length === 0) {
     return (
       <div className="space-y-4">
         <div>
@@ -85,7 +88,7 @@ export default function Ranking({ navigate, periodo, setPeriodo }) {
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Ranking</h2>
           <p className="text-gray-500 capitalize">
-            {dataSel === 'geral' ? descreverPeriodo(periodo) : formatDateFull(dataSel)}
+            {dataAtiva === 'geral' ? descreverPeriodo(periodo) : formatDateFull(dataAtiva)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -96,16 +99,16 @@ export default function Ranking({ navigate, periodo, setPeriodo }) {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 space-y-3 no-print">
-        <SeletorPeriodo periodo={periodo} onChange={setPeriodo} datas={datas} />
+        <SeletorPeriodo periodo={periodo} onChange={setPeriodo} datas={datas ?? []} />
         <div className="flex items-center gap-2 flex-wrap border-t border-gray-100 pt-3">
+          <MiniCalendario value={dataAtiva === 'geral' ? null : dataAtiva} onChange={setDataSel} datasDisponiveis={datasDoPeriodo} />
+          <span className="text-sm text-gray-400">ou</span>
           <button onClick={() => setDataSel('geral')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${dataSel === 'geral' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-600 bg-white hover:bg-gray-50'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${dataAtiva === 'geral' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-600 bg-white hover:bg-gray-50'}`}
             title="Somar todas as aulas do período"
           >
-            Período todo
+            {temPeriodo ? 'Período todo' : 'Geral'}
           </button>
-          <span className="text-sm text-gray-400">ou um domingo:</span>
-          <MiniCalendario value={dataSel === 'geral' ? null : dataSel} onChange={setDataSel} datasDisponiveis={datasDoPeriodo} />
         </div>
       </div>
 
@@ -113,7 +116,7 @@ export default function Ranking({ navigate, periodo, setPeriodo }) {
         <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
       ) : ranking.length === 0 ? (
         <div className="text-center py-10 bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-400">Nenhuma chamada registrada {dataSel === 'geral' ? 'nesse período' : 'nessa data'}.</p>
+          <p className="text-gray-400">Nenhuma chamada registrada {dataAtiva === 'geral' ? 'nesse período' : 'nessa data'}.</p>
         </div>
       ) : (
         <>
@@ -132,7 +135,9 @@ export default function Ranking({ navigate, periodo, setPeriodo }) {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100">
               <h3 className="font-bold text-gray-700">Classificação completa</h3>
-              <p className="text-xs text-gray-400 mt-0.5">{ranking.length} turma{ranking.length !== 1 ? 's' : ''} com chamada nesta data</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {ranking.length} turma{ranking.length !== 1 ? 's' : ''} com chamada {dataAtiva === 'geral' ? 'no período' : 'nesta data'}
+              </p>
             </div>
             <div className="divide-y divide-gray-100">
               {ranking.map((item, idx) => {
